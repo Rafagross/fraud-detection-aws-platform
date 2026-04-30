@@ -1,0 +1,37 @@
+name: tflint
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+      - '.tflint.hcl'
+      - '.github/workflows/tflint.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  tflint:
+    name: tflint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup tflint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.51.1
+
+      - name: Init tflint
+        run: tflint --init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Run tflint
+        run: tflint --recursive --format compact
+        working-directory: terraform
