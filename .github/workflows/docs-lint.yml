@@ -1,0 +1,37 @@
+name: Docs Lint
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'runbooks/**'
+      - 'README.md'
+      - '.github/workflows/docs-lint.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  markdownlint:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@v16
+        with:
+          globs: |
+            README.md
+            docs/**/*.md
+            runbooks/**/*.md
+          config: |
+            {
+              "MD013": false,
+              "MD033": false,
+              "MD041": false
+            }
