@@ -1,0 +1,96 @@
+@startuml iam-trust
+!theme plain
+title IAM Roles and Trust Relationships
+
+skinparam shadowing false
+skinparam defaultFontName "Helvetica"
+skinparam defaultFontSize 11
+skinparam roundCorner 10
+
+skinparam component {
+    BackgroundColor<<role>> #E6EEF8
+    BorderColor<<role>> #4A6FA5
+    BackgroundColor<<service>> #FFF4E6
+    BorderColor<<service>> #D9822B
+    BackgroundColor<<human>> #E6F4EA
+    BorderColor<<human>> #2D8659
+    BackgroundColor<<resource>> #F0F4F8
+    BorderColor<<resource>> #555555
+}
+
+' --- Service principals ---
+package "AWS Service Principals" {
+    component "ec2.amazonaws.com" as ec2sp <<service>>
+    component "imagebuilder.amazonaws.com" as ibsp <<service>>
+    component "backup.amazonaws.com" as bksp <<service>>
+    component "vpc-flow-logs.amazonaws.com" as fllsp <<service>>
+}
+
+' --- Human / external principals ---
+package "Operator Identity" {
+    component "Identity Center user\n(via permission set)" as idc <<human>>
+    component "GitHub Actions\n(OIDC — Phase 2)" as gha <<human>>
+}
+
+' --- Platform IAM roles ---
+package "Platform IAM Roles" {
+    component "cloudops-dev-role-workload\n(EC2 instance profile)" as r_workload <<role>>
+    component "cloudops-dev-role-image-builder\n(EC2 instance profile)" as r_ib <<role>>
+    component "cloudops-dev-role-image-builder-distribution" as r_ibdist <<role>>
+    component "cloudops-dev-role-aws-backup" as r_backup <<role>>
+    component "cloudops-dev-role-flowlogs" as r_fl <<role>>
+    component "cloudops-dev-role-deploy\n(Terraform apply)" as r_deploy <<role>>
+    component "cloudops-dev-role-break-glass\n(EMERGENCY USE ONLY)" as r_bg <<role>>
+}
+
+' --- Key resources ---
+package "Resources Accessed" {
+    component "Platform CMK" as cmk <<resource>>
+    component "SSM Parameter Store\n/cloudops/dev/*" as ssmps <<resource>>
+    component "CloudWatch Log Groups" as cwlogs <<resource>>
+    component "Backup Vault" as vault <<resource>>
+    component "S3 Diagnostics Bucket" as s3diag <<resource>>
+    component "Workload EBS volumes" as ebs <<resource>>
+    component "Golden AMI parameter" as ami <<resource>>
+}
+
+' --- Trust relationships ---
+ec2sp ==> r_workload : sts:AssumeRole
+ec2sp ==> r_ib : sts:AssumeRole
+ibsp ==> r_ibdist : sts:AssumeRole
+bksp ==> r_backup : sts:AssumeRole
+fllsp ==> r_fl : sts:AssumeRole
+idc ==> r_deploy : sts:AssumeRole\n(MFA required)
+idc ==> r_bg : sts:AssumeRole\n(MFA + manual approval,\ntriggers EventBridge alert)
+gha ==> r_deploy : sts:AssumeRoleWithWebIdentity\n(Phase 2)
+
+' --- Permissions ---
+r_workload ..> ssmps : GetParameter (scoped)
+r_workload ..> cwlogs : PutLogEvents, CreateLogStream
+r_workload ..> cmk : Decrypt, GenerateDataKey (kms:ViaService)
+r_workload ..> s3diag : PutObject
+
+r_ibdist ..> ami : PutParameter
+r_ibdist ..> cmk : Encrypt (for AMI snapshots)
+
+r_backup ..> ebs : CreateSnapshot, DeleteSnapshot
+r_backup ..> vault : PutBackup, StartRestoreJob
+r_backup ..> cmk : Encrypt, Decrypt, GenerateDataKey, CreateGrant
+
+r_fl ..> cwlogs : PutLogEvents (/aws/vpc/flowlogs)
+
+r_bg ..> vault : DeleteRecoveryPoint (only role permitted)
+r_bg ..> cmk : Full access including ScheduleKeyDeletion
+
+note bottom of r_bg
+  Use triggers EventBridge -> SNS alert.
+  Two-person approval is a Phase 2 hardening.
+end note
+
+note bottom of r_deploy
+  Cannot delete KMS keys,
+  cannot modify its own policy,
+  cannot assume break-glass.
+end note
+
+@enduml
