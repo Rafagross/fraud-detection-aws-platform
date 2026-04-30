@@ -1,0 +1,335 @@
+# Architecture
+
+This document describes the full design of the `aws-cloudops-private-ec2-operations-platform`. It assumes the reader is comfortable with AWS networking, IAM, and EC2.
+
+For shorter "why" answers on individual decisions, see the ADRs under [`decision-records/`](decision-records/).
+
+---
+
+## 1. Goals and non-goals
+
+### Goals
+- Operate Linux EC2 workloads in private subnets with zero inbound network exposure.
+- Provide auditable, identity-based shell and command access without SSH, key pairs, or bastions.
+- Make instance replacement automatic, not manual.
+- Encrypt all platform data at rest and in transit with a customer-managed key.
+- Stay under $100/month while remaining defensible as a real production pattern.
+- Be defensible in a senior-level technical interview — every choice has a documented reason.
+
+### Non-goals
+- Running a managed database. The fictional workload (`heartbeat-api`) is stateless by design; introducing RDS or DynamoDB would inflate cost without strengthening the platform narrative.
+- Multi-account or organization-level controls. This repo provisions a single workload pattern in a single account. The org structure is assumed to exist.
+- Human identity (SSO, permission sets, MFA enforcement at the IAM Identity Center level). The platform builds *workload* IAM roles; operator IAM is upstream.
+- Multi-region disaster recovery. In-region durability via AWS Backup is the MVP; multi-region copy is a Phase 2 enhancement.
+- Kubernetes. EKS belongs in a different reference project.
+
+---
+
+## 2. The fictional workload: `heartbeat-api`
+
+A small Go HTTP service exists so the platform has something real to operate, observe, back up, and patch. It is not the point of the project — the platform is — but it gives the runbooks and alarms genuine signal.
+
+| Property | Value |
+|---|---|
+| Language | Go (single static `arm64` binary) |
+| Listener | `127.0.0.1:8080` only (never exposed beyond the instance) |
+| Endpoints | `GET /health`, `GET /metrics` (Prometheus format), `GET /work?ms=N` |
+| Process model | systemd unit `heartbeat-api.service` |
+| Config file | `/etc/heartbeat/config.yaml` |
+| Log destination | `/var/log/heartbeat/app.log` (shipped to CloudWatch Logs by the agent) |
+| External dependencies | None |
+
+The binary is baked into the Golden AMI by the Image Builder pipeline. There is no runtime code deploy in MVP — a new app version means a new AMI, a new Launch Template version, and an ASG instance refresh. This is deliberate: it demonstrates immutable infrastructure, and it removes the "how do I deploy code to a private instance" question from MVP scope.
+
+Operators reach the local listener for testing via SSM Session Manager port forwarding:
+
+```
+aws ssm start-session \
+  --target i-xxxxxxxxxxxxxxxxx \
+  --document-name AWS-StartPortForwardingSession \
+  --parameters '{"portNumber":["8080"],"localPortNumber":["8080"]}'
+```
+
+Then `curl http://localhost:8080/health` from the operator's laptop. No public endpoint, no Application Load Balancer, no inbound rules.
+
+---
+
+## 3. Network design
+
+### 3.1 VPC and CIDR
+
+Single VPC: `10.20.0.0/16`. Chosen to avoid the most common on-premises and home-network ranges (`10.0.0.0/16`, `192.168.x.x`, `172.16.x.x`).
+
+### 3.2 Subnets
+
+| Subnet | CIDR | AZ | Purpose | MVP usage |
+|---|---|---|---|---|
+| `cloudops-dev-public-a` | `10.20.0.0/24` | us-east-1a | Public (reserved) | Empty — no IGW attachment in MVP |
+| `cloudops-dev-public-b` | `10.20.1.0/24` | us-east-1b | Public (reserved) | Empty |
+| `cloudops-dev-private-app-a` | `10.20.10.0/24` | us-east-1a | Workload | ASG eligible |
+| `cloudops-dev-private-app-b` | `10.20.11.0/24` | us-east-1b | Workload | ASG eligible |
+| `cloudops-dev-private-vpce-a` | `10.20.20.0/24` | us-east-1a | Interface endpoints | One ENI per endpoint |
+| `cloudops-dev-private-vpce-b` | `10.20.21.0/24` | us-east-1b | Interface endpoints | One ENI per endpoint |
+
+Endpoint ENIs live in dedicated subnets so the security group surface is explicit and so workload-subnet route tables and ACLs aren't entangled with endpoint behavior.
+
+### 3.3 Routing
+
+- Workload private route tables: only the local VPC route. No `0.0.0.0/0`. Reachability to AWS services is via interface endpoints (private DNS enabled) and the S3 gateway endpoint route.
+- Endpoint subnet route tables: same — local VPC route only.
+- Public subnets have a route table prepared for an IGW but no IGW is attached in MVP.
+
+### 3.4 VPC endpoints
+
+Interface endpoints (PrivateLink, ~$7.30/endpoint/month + data):
+
+| Service | Why required |
+|---|---|
+| `com.amazonaws.us-east-1.ssm` | SSM Agent control plane |
+| `com.amazonaws.us-east-1.ssmmessages` | Session Manager data channel |
+| `com.amazonaws.us-east-1.ec2messages` | Run Command / agent messaging |
+| `com.amazonaws.us-east-1.logs` | CloudWatch Logs ingestion |
+| `com.amazonaws.us-east-1.monitoring` | CloudWatch Metrics |
+
+Gateway endpoint (free):
+
+| Service | Why required |
+|---|---|
+| `com.amazonaws.us-east-1.s3` | Image Builder artifacts, AWS Backup metadata, vended logs |
+
+KMS interface endpoint is **not** in MVP. KMS calls from the workload happen in the context of EBS, CloudWatch Logs, and AWS Backup — those services call KMS server-side, not the instance. The instance's direct KMS API call volume is negligible. Adding the endpoint costs another ~$87/year for no measurable security or performance gain.
+
+### 3.5 Why no NAT Gateway
+
+NAT Gateway base cost is ~$33/month per AZ before data charges. Workload instances do not need internet egress: SSM, CloudWatch, and S3 traffic uses endpoints; OS package updates happen inside the EC2 Image Builder pipeline (which manages its own egress in its own infrastructure configuration), not at runtime. Adding NAT to the runtime VPC would more than double the platform's monthly cost for no functional gain.
+
+If a future requirement demands runtime internet egress (an outbound API call, a webhook), the addition is one route table change. Justifying that cost should require a real reason — see [ADR 0001](decision-records/0001-no-nat-gateway.md).
+
+### 3.6 Why no public SSH
+
+Public SSH would require an internet-routable IP (or a bastion that does), an open port, key distribution, key rotation, and parallel audit logging. SSM Session Manager replaces all of it: IAM-controlled, MFA-required, encrypted in transit, fully logged to CloudWatch Logs, no inbound network rules. See [ADR 0002](decision-records/0002-ssm-only-access.md).
+
+### 3.7 VPC Flow Logs
+
+Flow Logs are enabled at the **VPC level** (captures all subnets) with destination CloudWatch Logs:
+
+| Property | Value |
+|---|---|
+| Log group | `/aws/vpc/flowlogs` |
+| Filter | `ALL` (accept + reject) |
+| Retention | 14 days |
+| Encryption | Platform CMK |
+| Format | Default (AWS standard fields) |
+
+This provides a complete network-layer audit trail for troubleshooting connectivity issues and investigating security incidents. A CloudWatch alarm on `IncomingBytes` at 5 GB/24h detects traffic anomalies.
+
+Cost is ~$0.75/month at MVP volume. Rationale and the alternatives considered (S3 destination, REJECT-only filter) are in [ADR 0007](decision-records/0007-vpc-flow-logs.md).
+
+---
+
+## 4. Compute design
+
+### 4.1 Instance type
+
+`t4g.micro` (Graviton, `arm64`). 2 vCPU, 1 GiB RAM, ~$6/month on-demand in `us-east-1`.
+
+Graviton is the AWS-recommended default for new Linux workloads. AL2023 has full `arm64` parity, both SSM Agent and CloudWatch Agent ship native `arm64` builds, and the `heartbeat-api` Go binary cross-compiles trivially. See [ADR 0003](decision-records/0003-amazon-linux-2023-on-graviton.md).
+
+### 4.2 Launch Template
+
+A single Launch Template, `cloudops-dev-lt-workload`, defines:
+
+| Field | Value |
+|---|---|
+| AMI ID | Resolved from SSM Parameter `/golden-ami/al2023-arm64/latest` |
+| Instance type | `t4g.micro` |
+| IAM instance profile | `cloudops-dev-iprofile-workload` |
+| Key pair | None |
+| Security groups | `cloudops-dev-sg-workload` |
+| Metadata options | IMDSv2 required, hop limit 1 |
+| EBS | 30 GB gp3, encrypted with platform CMK, deleted on termination |
+| User data | Minimal: register CloudWatch Agent config, start `heartbeat-api.service` |
+| Tags | `Project`, `Environment`, `Owner`, `CostCenter`, `ManagedBy`, `Backup=daily`, `Patch=auto`, `Workload=heartbeat-api` |
+
+New AMI versions land in the SSM Parameter; deploying them means creating a new Launch Template version and triggering an ASG instance refresh. There is no in-place update path in MVP. This is the immutable-infrastructure pattern, and it's the right answer for a portfolio.
+
+### 4.3 Auto Scaling Group
+
+`cloudops-dev-asg-workload` with `min=desired=max=1`, spanning both private workload subnets.
+
+The ASG is **not** for scaling — the workload doesn't need it. The ASG exists for two reasons:
+
+1. **Self-healing.** When the underlying instance fails an EC2 status check or is terminated, the ASG launches a replacement automatically. The replacement comes up clean from the Golden AMI, registers with SSM, and begins reporting metrics within ~3 minutes. No human in the loop.
+2. **Controlled rollout.** Instance refresh with a `MinHealthyPercentage=0` (acceptable because the workload is single-instance) replaces the instance on a new AMI without manual termination.
+
+Health check type is `EC2` in MVP (the workload has no public load balancer to provide ELB health checks). See [ADR 0005](decision-records/0005-asg-min-max-1-for-self-healing.md).
+
+### 4.4 Storage
+
+Single 30 GB gp3 EBS volume per instance, encrypted with the platform CMK. gp3 over gp2: cheaper baseline, higher floor IOPS, and IOPS/throughput are independently configurable. 30 GB is sized for OS + agents + the `heartbeat-api` binary + ~7 days of local logs before CloudWatch Logs rotation handles them.
+
+---
+
+## 5. IAM and security design
+
+### 5.1 Roles
+
+| Role | Trust | Purpose |
+|---|---|---|
+| `cloudops-dev-role-workload` | `ec2.amazonaws.com` | Instance profile for workload EC2 |
+| `cloudops-dev-role-image-builder` | `ec2.amazonaws.com` | Instance profile for Image Builder build instances |
+| `cloudops-dev-role-image-builder-distribution` | `imagebuilder.amazonaws.com` | Image Builder distribution |
+| `cloudops-dev-role-aws-backup` | `backup.amazonaws.com` | AWS Backup service role |
+| `cloudops-dev-role-deploy` (assumed by CI / operator) | Operator account principal | Terraform apply |
+
+### 5.2 Workload role permissions
+
+Attached managed policy: `AmazonSSMManagedInstanceCore`.
+
+Inline policy (least privilege):
+
+- `cloudwatch:PutMetricData` on `*`, conditioned on `cloudwatch:namespace` equals `CloudOpsPlatform/EC2`.
+- `logs:CreateLogStream`, `logs:PutLogEvents` on the specific platform log group ARNs only.
+- `ssm:GetParameter`, `ssm:GetParameters` on `arn:aws:ssm:us-east-1:<acct>:parameter/app/heartbeat-api/*` and `/cloudwatch-agent/config/*`.
+- `kms:Decrypt`, `kms:GenerateDataKey` on the platform CMK ARN, conditioned on `kms:ViaService` matching `ec2.us-east-1.amazonaws.com`, `logs.us-east-1.amazonaws.com`, or `ssm.us-east-1.amazonaws.com`.
+
+No `s3:*`. No `ec2:*`. No `iam:*`. No wildcard resources except where the action requires it (`PutMetricData`).
+
+### 5.3 KMS
+
+One customer-managed symmetric key, `cloudops-dev-cmk-platform`, used for EBS volume encryption, CloudWatch Logs encryption, SSM session log encryption, and AWS Backup vault encryption. Key rotation enabled. See [ADR 0004](decision-records/0004-single-cmk-for-mvp.md).
+
+### 5.4 Security groups
+
+| SG | Inbound | Outbound |
+|---|---|---|
+| `cloudops-dev-sg-workload` | None | TCP 443 to `cloudops-dev-sg-vpce`; TCP 443 to S3 prefix list |
+| `cloudops-dev-sg-vpce` | TCP 443 from `cloudops-dev-sg-workload` | None |
+
+### 5.5 Secrets and configuration
+
+SSM Parameter Store, Standard tier. See [ADR 0006](decision-records/0006-parameter-store-over-secrets-manager.md).
+
+---
+
+## 6. Operations design
+
+### 6.1 Operator access
+
+All access via SSM Session Manager. MFA required. Sessions logged to `/aws/ssm/sessions` with KMS encryption, 30-day retention. See [ADR 0002](decision-records/0002-ssm-only-access.md).
+
+### 6.2 CloudWatch Agent
+
+Config pulled from SSM Parameter `/cloudwatch-agent/config/standard` at boot. Collects `mem_used_percent`, `swap_used_percent`, `disk_used_percent`, `disk_inodes_free` plus application and system logs.
+
+### 6.3 Run Command
+
+| Document | Purpose |
+|---|---|
+| `cloudops-collect-diagnostics` | Tar `/var/log/`, push to the diagnostics S3 bucket |
+| `cloudops-restart-heartbeat` | `systemctl restart heartbeat-api` |
+| `cloudops-refresh-cwagent` | Re-fetch CloudWatch Agent config from Parameter Store |
+| `cloudops-emergency-patch` | Apply a single named CVE patch outside the Maintenance Window |
+
+#### S3 diagnostics bucket
+
+| Property | Value |
+|---|---|
+| Name | `cloudops-dev-s3-diagnostics-<accountid>` |
+| Encryption | SSE-KMS with platform CMK |
+| Public access block | All four settings: `true` |
+| Versioning | Enabled |
+| Lifecycle | Auto-delete objects after 30 days |
+| Bucket policy | Denies `s3:*` for non-TLS requests; restricts `PutObject` to workload role |
+
+### 6.4 Patch Manager
+
+Baseline: `Security` + `Critical` severity for AL2023. Maintenance Window: Sunday 06:00 UTC. Tag target: `Patch=auto`.
+
+---
+
+## 7. Observability design
+
+### 7.1 Metrics
+
+Native EC2 + CloudWatch Agent custom namespace `CloudOpsPlatform/EC2`: `mem_used_percent`, `swap_used_percent`, `disk_used_percent`, `disk_inodes_free`.
+
+### 7.2 Logs
+
+| Log Group | Retention | Encryption |
+|---|---|---|
+| `/aws/ec2/heartbeat-api/system` | 7 days | Platform CMK |
+| `/aws/ec2/heartbeat-api/app` | 7 days | Platform CMK |
+| `/aws/ec2/heartbeat-api/audit` | 30 days | Platform CMK |
+| `/aws/ssm/sessions` | 30 days | Platform CMK |
+| `/aws/vpc/flowlogs` | 14 days | Platform CMK |
+
+### 7.3 Alarms
+
+| Alarm | Threshold | Action |
+|---|---|---|
+| `cpu-high` | > 85% for 10 min | SNS |
+| `status-check-failed` | >= 1 for 2 datapoints | SNS |
+| `disk-root-high` | > 85% | SNS |
+| `mem-high` | > 90% for 10 min | SNS |
+| `instance-heartbeat-missing` | missing for 15 min | SNS |
+| `backup-job-failed` | any failure | SNS |
+
+### 7.4 Alerting
+
+EventBridge → SNS: EC2 state change to stopped/terminated, SSM Run Command failure, AWS Backup job failure. CloudWatch alarms → SNS. Email subscription in MVP.
+
+---
+
+## 8. Backup and recovery
+
+Full strategy in [`backup-strategy.md`](backup-strategy.md).
+
+| Property | Value |
+|---|---|
+| Vault | `cloudops-dev-vault-platform` (KMS-encrypted, single operational vault) |
+| Frequency | Daily, 05:00 UTC, tag `Backup=daily` |
+| Lifecycle | Warm 7 days → cold (90-day minimum) → delete day 98 |
+| RPO target | 24 hours |
+| RTO target | 1 hour (in-region single-volume restore) |
+| Vault Lock | Evaluated and excluded — see `backup-strategy.md` Section 5 |
+
+---
+
+## 9. Golden AMI strategy
+
+EC2 Image Builder pipeline `cloudops-dev-ibpipe-golden-al2023-arm64`. Monthly schedule + on-demand. Base: AL2023 arm64. Components: `update-linux`, CIS baseline, CloudWatch Agent install, heartbeat-api install, cleanup. Validation tests run before publish. AMI ID written to SSM Parameter `/cloudops/dev/golden-ami/al2023-arm64/latest`.
+
+---
+
+## 10. Cost control
+
+See [`cost-model.md`](cost-model.md). Total ~$54.80/month. Largest driver: VPC Interface Endpoints (~$36.50/month). AWS Budgets alerts at 50/80/100% of $100 ceiling.
+
+---
+
+## 11. Known design gaps
+
+- No Config / GuardDuty / Security Hub (Phase 2)
+- CloudTrail assumed, not built (prerequisite)
+- No Vault Lock (evaluated, excluded, documented)
+- Single-region only
+- Operator IAM upstream
+- Single CMK (ADR 0004)
+- No Inspector in AMI pipeline (Phase 2)
+- No Slack/PagerDuty (Phase 2)
+
+---
+
+## 12. Where to look next
+
+- **Runbooks:** [`../runbooks/`](../runbooks/)
+- **ADRs:** [`decision-records/`](decision-records/)
+- **Cost details:** [`cost-model.md`](cost-model.md)
+- **Security baseline:** [`security-baseline.md`](security-baseline.md)
+- **Threat model:** [`threat-model.md`](threat-model.md)
+- **Backup strategy:** [`backup-strategy.md`](backup-strategy.md)
+- **Naming conventions:** [`naming-conventions.md`](naming-conventions.md)
+- **Tagging strategy:** [`tagging-strategy.md`](tagging-strategy.md)
+- **Diagrams:** [`diagrams/`](diagrams/)
+- **Terraform:** [`../terraform/`](../terraform/)
