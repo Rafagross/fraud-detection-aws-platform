@@ -1,0 +1,18 @@
+# terraform.tfvars.example
+# Copy to terraform.tfvars and fill in your values.
+# terraform.tfvars is in .gitignore — never commit it.
+
+region      = "us-east-1"
+environment = "dev"
+project     = "cloudops"
+owner       = "Rafagross"
+cost_center = "portfolio"
+alert_email = "rafagross15@gmail.com"
+
+# Get current AL2023 arm64 AMI:
+# aws ssm get-parameter \
+#   --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64 \
+#   --query Parameter.Value --output text
+ami_id = "ami-REPLACE_WITH_CURRENT_AL2023_ARM64_AMI"
+
+workload_name = "heartbeat-api"
