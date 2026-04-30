@@ -1,0 +1,102 @@
+##############################################################################
+# main.tf — Dev environment module composition
+# Wires together all platform modules in dependency order.
+# See docs/architecture.md for full design context.
+##############################################################################
+
+data "aws_caller_identity" "current" {}
+
+data "aws_ec2_managed_prefix_list" "s3" {
+  name = "com.amazonaws.${var.region}.s3"
+}
+
+locals {
+  diagnostics_bucket_name = "${var.project}-${var.environment}-s3-diagnostics-${data.aws_caller_identity.current.account_id}"
+}
+
+# 1. KMS — must come first
+module "kms" {
+  source      = "../../modules/kms"
+  project     = var.project
+  environment = var.environment
+}
+
+# 2. VPC
+module "vpc" {
+  source      = "../../modules/vpc"
+  project     = var.project
+  environment = var.environment
+  kms_key_arn = module.kms.key_arn
+}
+
+# 3. IAM roles
+module "iam_roles" {
+  source                  = "../../modules/iam-roles"
+  project                 = var.project
+  environment             = var.environment
+  workload_name           = var.workload_name
+  kms_key_arn             = module.kms.key_arn
+  diagnostics_bucket_name = local.diagnostics_bucket_name
+}
+
+# 4. EC2 workload — creates the workload SG needed by vpc-endpoints
+module "ec2_workload" {
+  source        = "../../modules/ec2-workload"
+  project       = var.project
+  environment   = var.environment
+  workload_name = var.workload_name
+
+  vpc_id                 = module.vpc.vpc_id
+  private_app_subnet_ids = module.vpc.private_app_subnet_ids
+  vpce_sg_id             = module.vpc_endpoints.vpce_sg_id
+  s3_prefix_list_id      = data.aws_ec2_managed_prefix_list.s3.id
+  kms_key_arn            = module.kms.key_arn
+  instance_profile_name  = module.iam_roles.workload_instance_profile_name
+  ami_id                 = var.ami_id
+}
+
+# 5. VPC endpoints — needs workload SG
+module "vpc_endpoints" {
+  source      = "../../modules/vpc-endpoints"
+  project     = var.project
+  environment = var.environment
+
+  vpc_id                     = module.vpc.vpc_id
+  private_vpce_subnet_ids    = module.vpc.private_vpce_subnet_ids
+  private_app_route_table_id = module.vpc.private_app_route_table_id
+  workload_sg_id             = module.ec2_workload.workload_sg_id
+}
+
+# 6. Backup
+module "backup" {
+  source          = "../../modules/backup"
+  project         = var.project
+  environment     = var.environment
+  kms_key_arn     = module.kms.key_arn
+  backup_role_arn = module.iam_roles.aws_backup_role_arn
+}
+
+# 7. Observability
+module "observability" {
+  source        = "../../modules/observability"
+  project       = var.project
+  environment   = var.environment
+  workload_name = var.workload_name
+
+  kms_key_arn          = module.kms.key_arn
+  kms_key_id           = module.kms.key_id
+  asg_name             = module.ec2_workload.asg_name
+  alert_email          = var.alert_email
+  break_glass_role_arn = module.iam_roles.break_glass_role_arn
+}
+
+# 8. Image Builder
+module "image_builder" {
+  source      = "../../modules/image-builder"
+  project     = var.project
+  environment = var.environment
+
+  kms_key_arn               = module.kms.key_arn
+  launch_template_id        = module.ec2_workload.launch_template_id
+  image_builder_logs_bucket = var.image_builder_logs_bucket != "" ? var.image_builder_logs_bucket : module.ec2_workload.diagnostics_bucket_name
+}
