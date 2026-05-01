@@ -1,8 +1,10 @@
 ##############################################################################
 # Module: ec2-workload
-# Purpose: Security group, S3 diagnostics bucket, Launch Template, ASG.
-#          ASG min=max=1 for self-healing.
-#          See docs/decision-records/0005-asg-min-max-1-for-self-healing.md
+# Purpose: Security group (no inbound, S3 egress only here),
+#          S3 diagnostics bucket, Launch Template, ASG.
+#          The egress rule to the vpce SG is added from envs/dev/main.tf
+#          via aws_security_group_rule to break the circular dependency
+#          between ec2-workload and vpc-endpoints.
 ##############################################################################
 
 data "aws_caller_identity" "current" {}
@@ -16,16 +18,8 @@ locals {
 
 resource "aws_security_group" "workload" {
   name        = "${local.name_prefix}-sg-workload"
-  description = "Workload instances: no inbound, egress to VPC endpoints and S3 only."
+  description = "Workload instances: no inbound, egress to S3 and VPC endpoints (rule added externally)."
   vpc_id      = var.vpc_id
-
-  egress {
-    description     = "HTTPS to VPC interface endpoints"
-    from_port       = 443
-    to_port         = 443
-    protocol        = "tcp"
-    security_groups = [var.vpce_sg_id]
-  }
 
   egress {
     description     = "HTTPS to S3 via gateway endpoint"
