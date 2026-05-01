@@ -17,13 +17,8 @@ variable "private_app_subnet_ids" {
   type        = map(string)
 }
 
-variable "vpce_sg_id" {
-  description = "Security group ID of the VPC endpoints."
-  type        = string
-}
-
 variable "s3_prefix_list_id" {
-  description = "Managed prefix list ID for S3 in the region."
+  description = "Managed prefix list ID for S3 — used in egress rule."
   type        = string
 }
 

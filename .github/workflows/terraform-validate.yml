@@ -7,11 +7,6 @@ on:
     paths:
       - 'terraform/**'
       - '.github/workflows/terraform-validate.yml'
-  push:
-    branches:
-      - main
-    paths:
-      - 'terraform/**'
 
 permissions:
   contents: read
