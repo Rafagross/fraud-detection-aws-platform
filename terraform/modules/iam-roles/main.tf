@@ -74,6 +74,7 @@ resource "aws_iam_role_policy" "workload_inline" {
           "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${var.project}/${var.environment}/app/${var.workload_name}/*",
           "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${var.project}/${var.environment}/cloudwatch-agent/*",
           "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${var.project}/${var.environment}/golden-ami/*",
+          "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${var.project}/${var.environment}/worker/*",
         ]
       },
       {
@@ -92,6 +93,8 @@ resource "aws_iam_role_policy" "workload_inline" {
               "ssm.${local.region}.amazonaws.com",
               "logs.${local.region}.amazonaws.com",
               "s3.${local.region}.amazonaws.com",
+              "sqs.${local.region}.amazonaws.com",
+              "dynamodb.${local.region}.amazonaws.com",
             ]
           }
         }
@@ -101,6 +104,45 @@ resource "aws_iam_role_policy" "workload_inline" {
         Effect   = "Allow"
         Action   = ["s3:PutObject"]
         Resource = "arn:aws:s3:::${var.diagnostics_bucket_name}/*"
+      },
+    ]
+  })
+}
+
+# Worker permissions — only created when worker-infra ARNs are provided.
+# Kept as a separate policy resource so the iam-roles module stays usable
+# without worker-infra (empty-string defaults on the variables).
+resource "aws_iam_role_policy" "workload_worker" {
+  count = var.worker_queue_arn != "" && var.worker_dynamodb_table_arn != "" ? 1 : 0
+
+  name = "${local.name_prefix}-policy-workload-worker"
+  role = aws_iam_role.workload.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowSQSConsumer"
+        Effect = "Allow"
+        Action = [
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+        ]
+        Resource = var.worker_queue_arn
+      },
+      {
+        Sid    = "AllowDynamoDBFraudDecisions"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+        ]
+        Resource = [
+          var.worker_dynamodb_table_arn,
+          "${var.worker_dynamodb_table_arn}/index/card-velocity-index",
+        ]
       },
     ]
   })

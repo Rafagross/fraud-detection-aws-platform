@@ -1,8 +1,11 @@
 ##############################################################################
 # main.tf — Dev environment module composition
-# Module dependency order: kms > vpc > iam-roles > ec2-workload >
-#                          vpc-endpoints > sg-rule-wiring >
-#                          backup > observability > image-builder
+# Module dependency order:
+#   kms > worker-infra
+#   kms > vpc
+#   kms, worker-infra > iam-roles > ec2-workload > vpc-endpoints
+#   vpc-endpoints > sg-rule-wiring > backup > observability > image-builder
+#   observability + worker-infra > dlq-alarm (standalone resource at bottom)
 ##############################################################################
 
 data "aws_caller_identity" "current" {}
@@ -30,17 +33,27 @@ module "vpc" {
   kms_key_arn = module.kms.key_arn
 }
 
-# 3. IAM roles
-module "iam_roles" {
-  source                  = "../../modules/iam-roles"
-  project                 = var.project
-  environment             = var.environment
-  workload_name           = var.workload_name
-  kms_key_arn             = module.kms.key_arn
-  diagnostics_bucket_name = local.diagnostics_bucket_name
+# 3. Worker infrastructure — SQS + DynamoDB (depends only on kms)
+module "worker_infra" {
+  source      = "../../modules/worker-infra"
+  project     = var.project
+  environment = var.environment
+  kms_key_arn = module.kms.key_arn
 }
 
-# 4. EC2 workload — creates workload SG (S3 egress only; vpce egress added below)
+# 4. IAM roles (depends on worker-infra for least-privilege ARN scoping)
+module "iam_roles" {
+  source                    = "../../modules/iam-roles"
+  project                   = var.project
+  environment               = var.environment
+  workload_name             = var.workload_name
+  kms_key_arn               = module.kms.key_arn
+  diagnostics_bucket_name   = local.diagnostics_bucket_name
+  worker_queue_arn          = module.worker_infra.queue_arn
+  worker_dynamodb_table_arn = module.worker_infra.dynamodb_table_arn
+}
+
+# 5. EC2 workload — creates workload SG (S3 egress only; vpce egress added below)
 module "ec2_workload" {
   source        = "../../modules/ec2-workload"
   project       = var.project
@@ -55,7 +68,7 @@ module "ec2_workload" {
   ami_id                 = var.ami_id
 }
 
-# 5. VPC endpoints — needs workload SG
+# 6. VPC endpoints — needs workload SG
 module "vpc_endpoints" {
   source      = "../../modules/vpc-endpoints"
   project     = var.project
@@ -67,7 +80,7 @@ module "vpc_endpoints" {
   workload_sg_id             = module.ec2_workload.workload_sg_id
 }
 
-# 5b. Wire vpce egress rule onto the workload SG — breaks circular dependency
+# 6b. Wire vpce egress rule onto the workload SG — breaks circular dependency
 # ec2-workload creates its SG without this rule; we add it here once both SGs exist.
 resource "aws_security_group_rule" "workload_to_vpce" {
   type                     = "egress"
@@ -79,7 +92,7 @@ resource "aws_security_group_rule" "workload_to_vpce" {
   source_security_group_id = module.vpc_endpoints.vpce_sg_id
 }
 
-# 6. Backup
+# 7. Backup
 module "backup" {
   source          = "../../modules/backup"
   project         = var.project
@@ -88,7 +101,7 @@ module "backup" {
   backup_role_arn = module.iam_roles.aws_backup_role_arn
 }
 
-# 7. Observability
+# 8. Observability
 module "observability" {
   source        = "../../modules/observability"
   project       = var.project
@@ -102,7 +115,7 @@ module "observability" {
   break_glass_role_arn = module.iam_roles.break_glass_role_arn
 }
 
-# 8. Image Builder
+# 9. Image Builder
 module "image_builder" {
   source      = "../../modules/image-builder"
   project     = var.project
@@ -111,4 +124,22 @@ module "image_builder" {
   kms_key_arn               = module.kms.key_arn
   launch_template_id        = module.ec2_workload.launch_template_id
   image_builder_logs_bucket = var.image_builder_logs_bucket != "" ? var.image_builder_logs_bucket : module.ec2_workload.diagnostics_bucket_name
+}
+
+# 10. DLQ depth alarm — standalone resource that needs both observability (SNS ARN)
+# and worker_infra (DLQ name). Lives here to avoid circular module dependencies.
+resource "aws_cloudwatch_metric_alarm" "worker_dlq_depth" {
+  alarm_name          = "${var.project}-${var.environment}-alarm-worker-dlq-depth"
+  alarm_description   = "Messages visible in fraud worker DLQ — 3 consecutive processing failures"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  namespace           = "AWS/SQS"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  dimensions          = { QueueName = split(":", module.worker_infra.dlq_arn)[5] }
+  alarm_actions       = [module.observability.sns_topic_arn]
+  tags                = { Name = "${var.project}-${var.environment}-alarm-worker-dlq-depth" }
 }

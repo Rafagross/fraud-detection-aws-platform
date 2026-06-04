@@ -48,3 +48,9 @@ variable "root_volume_size_gb" {
   type        = number
   default     = 30
 }
+
+variable "asg_instance_count" {
+  description = "Desired/min/max instance count for the ASG. Use 1 for cost-saving demo teardowns, 2 for production HA."
+  type        = number
+  default     = 2
+}

@@ -218,6 +218,88 @@ resource "aws_imagebuilder_component" "heartbeat_api_install" {
   tags = { Name = "${local.name_prefix}-ibcomp-heartbeat-api-install" }
 }
 
+locals {
+  # base64-encode the script so yamlencode produces a clean single-line
+  # shell command — avoids heredoc quoting issues inside YAML strings.
+  fraud_worker_script_b64 = base64encode(file("${path.module}/templates/fraud-worker.sh"))
+}
+
+resource "aws_imagebuilder_component" "fraud_worker_install" {
+  name     = "${local.name_prefix}-ibcomp-fraud-worker-install"
+  platform = "Linux"
+  version  = "1.0.0"
+  data = yamlencode({
+    name          = "fraud-worker Install"
+    schemaVersion = "1.0"
+    phases = [
+      {
+        name = "build"
+        steps = [
+          {
+            name   = "CreateDirs"
+            action = "ExecuteBash"
+            inputs = { commands = ["mkdir -p /usr/local/bin /etc/fraud-worker"] }
+          },
+          {
+            name   = "InstallScript"
+            action = "ExecuteBash"
+            inputs = {
+              commands = [
+                "echo '${local.fraud_worker_script_b64}' | base64 -d > /usr/local/bin/fraud-worker.sh",
+                "chmod 0750 /usr/local/bin/fraud-worker.sh",
+                "chown root:root /usr/local/bin/fraud-worker.sh",
+              ]
+            }
+          },
+          {
+            name   = "WriteConfig"
+            action = "ExecuteBash"
+            inputs = {
+              commands = [
+                "printf 'SSM_PREFIX=/${var.project}/${var.environment}/worker\\n' > /etc/fraud-worker/config.env",
+                "chmod 0640 /etc/fraud-worker/config.env",
+                "chown root:nobody /etc/fraud-worker/config.env",
+              ]
+            }
+          },
+          {
+            name   = "InstallSystemdUnit"
+            action = "ExecuteBash"
+            inputs = {
+              commands = [
+                "printf '[Unit]\\nDescription=Fraud Screening Worker\\nAfter=network.target\\n\\n[Service]\\nType=simple\\nUser=nobody\\nExecStart=/usr/local/bin/fraud-worker.sh\\nRestart=on-failure\\nRestartSec=10\\nStandardOutput=journal\\nStandardError=journal\\nSyslogIdentifier=fraud-worker\\nNoNewPrivileges=yes\\nPrivateTmp=yes\\n\\n[Install]\\nWantedBy=multi-user.target\\n' > /etc/systemd/system/fraud-worker.service",
+                "systemctl daemon-reload",
+                "systemctl enable fraud-worker.service",
+              ]
+            }
+          },
+        ]
+      },
+      {
+        name = "validate"
+        steps = [
+          {
+            name   = "ValidateScript"
+            action = "ExecuteBash"
+            inputs = { commands = ["[ -x /usr/local/bin/fraud-worker.sh ] || exit 1"] }
+          },
+          {
+            name   = "ValidateConfig"
+            action = "ExecuteBash"
+            inputs = { commands = ["grep -q 'SSM_PREFIX' /etc/fraud-worker/config.env || exit 1"] }
+          },
+          {
+            name   = "ValidateService"
+            action = "ExecuteBash"
+            inputs = { commands = ["systemctl is-enabled fraud-worker.service || exit 1"] }
+          },
+        ]
+      },
+    ]
+  })
+  tags = { Name = "${local.name_prefix}-ibcomp-fraud-worker-install" }
+}
+
 resource "aws_imagebuilder_component" "cleanup" {
   name     = "${local.name_prefix}-ibcomp-cleanup"
   platform = "Linux"
@@ -260,6 +342,7 @@ resource "aws_imagebuilder_image_recipe" "golden_al2023_arm64" {
   component { component_arn = aws_imagebuilder_component.cis_baseline.arn }
   component { component_arn = aws_imagebuilder_component.cwagent_install.arn }
   component { component_arn = aws_imagebuilder_component.heartbeat_api_install.arn }
+  component { component_arn = aws_imagebuilder_component.fraud_worker_install.arn }
   component { component_arn = aws_imagebuilder_component.cleanup.arn }
 
   tags = { Name = "${local.name_prefix}-ibrecipe-golden-al2023-arm64" }
