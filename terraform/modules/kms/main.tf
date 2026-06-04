@@ -105,6 +105,8 @@ data "aws_iam_policy_document" "kms_key_policy" {
         "ssm.${local.region}.amazonaws.com",
         "logs.${local.region}.amazonaws.com",
         "s3.${local.region}.amazonaws.com",
+        "sqs.${local.region}.amazonaws.com",
+        "dynamodb.${local.region}.amazonaws.com",
       ]
     }
   }

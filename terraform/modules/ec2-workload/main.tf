@@ -167,9 +167,9 @@ resource "aws_launch_template" "workload" {
 
 resource "aws_autoscaling_group" "workload" {
   name                      = "${local.name_prefix}-asg-workload"
-  min_size                  = 1
-  max_size                  = 1
-  desired_capacity          = 1
+  min_size                  = var.asg_instance_count
+  max_size                  = var.asg_instance_count
+  desired_capacity          = var.asg_instance_count
   vpc_zone_identifier       = values(var.private_app_subnet_ids)
   health_check_type         = "EC2"
   health_check_grace_period = 300
@@ -182,7 +182,9 @@ resource "aws_autoscaling_group" "workload" {
   instance_refresh {
     strategy = "Rolling"
     preferences {
-      min_healthy_percentage = 0
+      # 50% keeps one instance processing during AMI rotation (zero downtime).
+      # For asg_instance_count=1 this rounds to 0% — acceptable for demo teardowns.
+      min_healthy_percentage = var.asg_instance_count > 1 ? 50 : 0
       instance_warmup        = 300
     }
   }

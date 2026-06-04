@@ -35,6 +35,7 @@ locals {
     "ec2messages",
     "logs",
     "monitoring",
+    "sqs",        # fraud worker queue consumer (~$7.30/month)
   ])
 }
 
@@ -58,4 +59,15 @@ resource "aws_vpc_endpoint" "s3" {
   route_table_ids   = [var.private_app_route_table_id]
 
   tags = { Name = "${local.name_prefix}-vpce-gw-s3" }
+}
+
+# DynamoDB Gateway Endpoint — free, same pattern as S3.
+# Required for the fraud worker to write decisions without internet egress.
+resource "aws_vpc_endpoint" "dynamodb" {
+  vpc_id            = var.vpc_id
+  service_name      = "com.amazonaws.${local.region}.dynamodb"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [var.private_app_route_table_id]
+
+  tags = { Name = "${local.name_prefix}-vpce-gw-dynamodb" }
 }

@@ -1,0 +1,21 @@
+[Unit]
+Description=Fraud Screening Worker
+Documentation=https://github.com/Rafagross/aws-cloudops-private-ec2-operations-platform
+After=network.target
+
+[Service]
+Type=simple
+User=nobody
+ExecStart=/usr/local/bin/fraud-worker.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fraud-worker
+
+# Prevent the worker from opening network ports or acquiring new privileges
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
