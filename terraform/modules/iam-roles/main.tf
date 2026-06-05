@@ -113,7 +113,7 @@ resource "aws_iam_role_policy" "workload_inline" {
 # Kept as a separate policy resource so the iam-roles module stays usable
 # without worker-infra (empty-string defaults on the variables).
 resource "aws_iam_role_policy" "workload_worker" {
-  count = var.worker_queue_arn != "" && var.worker_dynamodb_table_arn != "" ? 1 : 0
+  count = var.enable_worker_policy ? 1 : 0
 
   name = "${local.name_prefix}-policy-workload-worker"
   role = aws_iam_role.workload.id

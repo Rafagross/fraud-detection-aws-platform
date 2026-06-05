@@ -58,6 +58,26 @@ resource "aws_iam_role_policy" "ib_ssm_param_write" {
   })
 }
 
+resource "aws_iam_role_policy" "ib_s3_logs" {
+  name = "${local.name_prefix}-policy-ib-s3-logs"
+  role = aws_iam_role.image_builder.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:GetBucketLocation",
+      ]
+      Resource = [
+        "arn:aws:s3:::${var.image_builder_logs_bucket}",
+        "arn:aws:s3:::${var.image_builder_logs_bucket}/*",
+      ]
+    }]
+  })
+}
+
 resource "aws_iam_instance_profile" "image_builder" {
   name = "${local.name_prefix}-iprofile-image-builder"
   role = aws_iam_role.image_builder.name
@@ -68,7 +88,7 @@ resource "aws_iam_instance_profile" "image_builder" {
 resource "aws_imagebuilder_infrastructure_configuration" "default" {
   name                          = "${local.name_prefix}-ibinfra-default"
   description                   = "Build infrastructure for Golden AMI pipeline"
-  instance_types                = ["t3.medium"]
+  instance_types                = ["t4g.medium"]
   instance_profile_name         = aws_iam_instance_profile.image_builder.name
   terminate_instance_on_failure = true
 
@@ -207,7 +227,7 @@ resource "aws_imagebuilder_component" "heartbeat_api_install" {
           action = "ExecuteBash"
           inputs = {
             commands = [
-              "HTTP=$(curl -s -o /dev/null -w '%{http_code}' http://169.254.169.254/latest/meta-data/ --max-time 2 || echo 000)",
+              "HTTP=$(curl -s -o /dev/null -w '%%{http_code}' http://169.254.169.254/latest/meta-data/ --max-time 2 || echo 000)",
               "[ \"$HTTP\" = '401' ] || exit 1",
             ]
           }
