@@ -35,3 +35,9 @@ variable "worker_dynamodb_table_arn" {
   type        = string
   default     = ""
 }
+
+variable "enable_worker_policy" {
+  description = "Set to true when worker-infra ARNs are provided so the worker IAM policy is created."
+  type        = bool
+  default     = false
+}

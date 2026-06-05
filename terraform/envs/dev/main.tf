@@ -51,6 +51,7 @@ module "iam_roles" {
   diagnostics_bucket_name   = local.diagnostics_bucket_name
   worker_queue_arn          = module.worker_infra.queue_arn
   worker_dynamodb_table_arn = module.worker_infra.dynamodb_table_arn
+  enable_worker_policy      = true
 }
 
 # 5. EC2 workload — creates workload SG (S3 egress only; vpce egress added below)
