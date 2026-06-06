@@ -99,3 +99,8 @@ venv/
 *.tmp
 *.bak
 *.orig
+AWSCLIV2.pkg
+sessionmanager-bundle.zip
+sessionmanager-bundle.zip
+sessionmanager-bundle/
+terraform/bootstrap/tfplan
