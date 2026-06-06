@@ -92,7 +92,7 @@ A higher-fidelity network and IAM diagram lives in [`docs/diagrams/`](docs/diagr
 | Configuration management | SSM Parameter Store (Standard tier, SecureString where needed) |
 | Patching | Immutable — OS patches baked into Golden AMIs via EC2 Image Builder; running instances replaced via ASG refresh, never patched in place |
 | Observability | CloudWatch Agent (system + custom metrics), CloudWatch Logs, alarms on CPU/memory/disk/status, dashboard |
-| Alerting | EventBridge → SNS → email (Slack/PagerDuty deferred) |
+| Alerting | CloudWatch Alarms + EventBridge → SNS → email; events: EC2 state change, SSM Run Command failure, Backup job failure, KMS key deletion, break-glass role assumption (Slack/PagerDuty deferred) |
 | Backup and recovery | AWS Backup, daily snapshots, 7d warm + 30d cold, KMS-encrypted vault |
 | Fraud transaction processing | SQS queue → EC2 fraud-worker (Python) → DynamoDB; zero-downtime ASG rolling updates |
 | Immutable infrastructure | EC2 Image Builder produces Golden AL2023 arm64 AMIs; Launch Template references the AMI ID via SSM Parameter |
