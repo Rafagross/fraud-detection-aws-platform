@@ -1,8 +1,8 @@
-# aws-cloudops-private-ec2-operations-platform
+# fraud-detection-aws-platform
 
-A reference AWS CloudOps platform for operating EC2 workloads in private subnets with no public SSH, no bastion hosts, and no key pairs. Operator access is exclusively through SSM Session Manager over VPC Interface Endpoints. Workloads run on hardened Golden AMIs produced by EC2 Image Builder, encrypted with a customer-managed KMS key, monitored with the CloudWatch Agent, and protected by AWS Backup with lifecycle-managed retention.
+A production-grade fraud detection platform built on AWS, running a real-time fraud transaction scoring worker in private EC2 subnets with no public SSH, no bastion hosts, and no key pairs. Operator access is exclusively through SSM Session Manager over VPC Interface Endpoints. The fraud worker reads transactions from SQS, applies scoring rules, and persists decisions to DynamoDB — running on hardened Golden AMIs produced by EC2 Image Builder, encrypted with a customer-managed KMS key, monitored with the CloudWatch Agent, and protected by AWS Backup.
 
-Designed as a production-pattern reference, not a tutorial. Targets under $100/month in `us-east-1`.
+Designed as a production-pattern reference for financial workloads requiring strict isolation and auditability. Targets under $100/month in `us-east-1`.
 
 ---
 
@@ -13,12 +13,12 @@ Most public examples for "EC2 on AWS" still teach SSH key pairs, public bastions
 - No inbound network access to workload instances.
 - Identity-based access through IAM and SSM, fully audited, encrypted, MFA-gated.
 - Immutable infrastructure via Golden AMIs and Launch Templates.
-- Self-healing through an Auto Scaling Group sized at `min=max=1`.
+- Self-healing through an Auto Scaling Group sized at `min=max=2`.
 - Encryption everywhere with a customer-managed KMS key.
 - Backups with cold-storage lifecycle and a documented restore drill.
 - Cost held under $100/month through deliberate trade-offs (no NAT Gateway, single CMK, Graviton compute).
 
-The platform hosts a small fictional service called `heartbeat-api` — a Go binary exposing `/health`, `/metrics`, and a load-simulation endpoint — so the runbooks, alarms, and Run Command documents have something real to operate on.
+The platform runs a fraud transaction scoring worker — a Python service that polls an SQS queue, evaluates transaction risk, and writes fraud decisions to DynamoDB — giving the runbooks, alarms, and automation something real to operate on.
 
 ---
 
@@ -40,11 +40,12 @@ flowchart LR
             vpce_logs[VPCE: logs]
             vpce_mon[VPCE: monitoring]
             s3gw[S3 Gateway Endpoint]
+            dynamo_gw[DynamoDB Gateway Endpoint]
         end
 
         subgraph workload[Workload subnets - private, 2 AZs]
-            asg[Auto Scaling Group<br/>min=max=1]
-            ec2[EC2 t4g.micro<br/>Golden AMI<br/>heartbeat-api]
+            asg[Auto Scaling Group<br/>min=max=2]
+            ec2[EC2 t4g.micro<br/>Golden AMI<br/>fraud-worker]
         end
     end
 
@@ -53,6 +54,8 @@ flowchart LR
     backup[AWS Backup<br/>Vault + Plan]
     kms[KMS CMK]
     ib[EC2 Image Builder<br/>Golden AMI Pipeline]
+    sqs[SQS<br/>fraud-transactions]
+    ddb[DynamoDB<br/>fraud-decisions]
 
     operator -->|aws ssm start-session| iam
     iam --> ssm
@@ -71,6 +74,9 @@ flowchart LR
     backup -.encrypted with.-> kms
     ec2 -.snapshotted by.-> backup
     ib -.publishes AMI ID to SSM Parameter.-> asg
+    ec2 -->|poll messages| sqs
+    ec2 -->|write decisions| dynamo_gw
+    dynamo_gw --> ddb
 ```
 
 A higher-fidelity network and IAM diagram lives in [`docs/diagrams/`](docs/diagrams/). Full architecture detail is in [`docs/architecture.md`](docs/architecture.md).
@@ -88,8 +94,9 @@ A higher-fidelity network and IAM diagram lives in [`docs/diagrams/`](docs/diagr
 | Observability | CloudWatch Agent (system + custom metrics), CloudWatch Logs, alarms on CPU/memory/disk/status, dashboard |
 | Alerting | EventBridge → SNS → email (Slack/PagerDuty deferred) |
 | Backup and recovery | AWS Backup, daily snapshots, 7d warm + 30d cold, KMS-encrypted vault |
+| Fraud transaction processing | SQS queue → EC2 fraud-worker (Python) → DynamoDB; zero-downtime ASG rolling updates |
 | Immutable infrastructure | EC2 Image Builder produces Golden AL2023 arm64 AMIs; Launch Template references the AMI ID via SSM Parameter |
-| Self-healing | Auto Scaling Group `min=max=1` across two AZs replaces failed instances automatically |
+| Self-healing | Auto Scaling Group `min=max=2` across two AZs replaces failed instances automatically |
 | Encryption | Customer-managed KMS key for EBS, CloudWatch Logs, AWS Backup vault, SSM session logs |
 
 ---
