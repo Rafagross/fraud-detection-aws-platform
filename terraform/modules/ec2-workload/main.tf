@@ -30,6 +30,10 @@ resource "aws_security_group" "workload" {
   }
 
   tags = { Name = "${local.name_prefix}-sg-workload" }
+
+  lifecycle {
+    ignore_changes = [egress]
+  }
 }
 
 resource "aws_s3_bucket" "diagnostics" {
