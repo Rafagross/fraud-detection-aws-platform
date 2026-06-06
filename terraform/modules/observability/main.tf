@@ -15,15 +15,15 @@ locals {
 
 # SNS
 resource "aws_sns_topic" "alerts" {
-  name              = "${local.name_prefix}-sns-alerts"
-  kms_master_key_id = var.kms_key_arn
-  tags              = { Name = "${local.name_prefix}-sns-alerts" }
+  name = "${local.name_prefix}-sns-alerts"
+  tags = { Name = "${local.name_prefix}-sns-alerts" }
 }
 
 resource "aws_sns_topic_subscription" "email" {
-  topic_arn = aws_sns_topic.alerts.arn
-  protocol  = "email"
-  endpoint  = var.alert_email
+  topic_arn                       = aws_sns_topic.alerts.arn
+  protocol                        = "email"
+  endpoint                        = var.alert_email
+  confirmation_timeout_in_minutes = 10
 }
 
 resource "aws_sns_topic_policy" "alerts" {
@@ -158,7 +158,7 @@ resource "aws_cloudwatch_metric_alarm" "instance_heartbeat_missing" {
   period              = 300
   statistic           = "SampleCount"
   threshold           = 0
-  treat_missing_data  = "breaching"
+  treat_missing_data  = "ignore"
   alarm_actions       = [aws_sns_topic.alerts.arn]
   tags                = { Name = "${local.name_prefix}-alarm-instance-heartbeat-missing" }
 }

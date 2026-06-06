@@ -208,7 +208,7 @@ A managed database (no application use case), Kubernetes (out of scope for an EC
 
 - **GitHub:** [@Rafagross](https://github.com/Rafagross)
 - **LinkedIn:** [erafael-gross](https://www.linkedin.com/in/erafael-gross)
-- **Email:** rafagross15@gmail.com
+- **Email:** *(available on LinkedIn)*
 
 Open to feedback. If you're reviewing this as a hiring signal, the architecture document and ADRs are the highest-density read.
 

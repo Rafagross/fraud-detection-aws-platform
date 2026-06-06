@@ -160,6 +160,8 @@ resource "aws_imagebuilder_component" "cis_baseline" {
     ]
   })
   tags = { Name = "${local.name_prefix}-ibcomp-cis-baseline" }
+
+  lifecycle { create_before_destroy = true }
 }
 
 resource "aws_imagebuilder_component" "cwagent_install" {
@@ -189,6 +191,8 @@ resource "aws_imagebuilder_component" "cwagent_install" {
     ]
   })
   tags = { Name = "${local.name_prefix}-ibcomp-cwagent-install" }
+
+  lifecycle { create_before_destroy = true }
 }
 
 resource "aws_imagebuilder_component" "heartbeat_api_install" {
@@ -236,6 +240,8 @@ resource "aws_imagebuilder_component" "heartbeat_api_install" {
     ]
   })
   tags = { Name = "${local.name_prefix}-ibcomp-heartbeat-api-install" }
+
+  lifecycle { create_before_destroy = true }
 }
 
 locals {
@@ -267,7 +273,7 @@ resource "aws_imagebuilder_component" "fraud_worker_install" {
               commands = [
                 "echo '${local.fraud_worker_script_b64}' | base64 -d > /usr/local/bin/fraud-worker.sh",
                 "chmod 0750 /usr/local/bin/fraud-worker.sh",
-                "chown root:root /usr/local/bin/fraud-worker.sh",
+                "chown root:nobody /usr/local/bin/fraud-worker.sh",
               ]
             }
           },
@@ -318,6 +324,8 @@ resource "aws_imagebuilder_component" "fraud_worker_install" {
     ]
   })
   tags = { Name = "${local.name_prefix}-ibcomp-fraud-worker-install" }
+
+  lifecycle { create_before_destroy = true }
 }
 
 resource "aws_imagebuilder_component" "cleanup" {
@@ -337,13 +345,15 @@ resource "aws_imagebuilder_component" "cleanup" {
     }]
   })
   tags = { Name = "${local.name_prefix}-ibcomp-cleanup" }
+
+  lifecycle { create_before_destroy = true }
 }
 
 # Image recipe
 resource "aws_imagebuilder_image_recipe" "golden_al2023_arm64" {
   name         = "${local.name_prefix}-ibrecipe-golden-al2023-arm64"
   parent_image = data.aws_ssm_parameter.al2023_arm64.value
-  version      = "1.0.0"
+  version      = "1.1.0"
 
   block_device_mapping {
     device_name = "/dev/xvda"
@@ -366,6 +376,8 @@ resource "aws_imagebuilder_image_recipe" "golden_al2023_arm64" {
   component { component_arn = aws_imagebuilder_component.cleanup.arn }
 
   tags = { Name = "${local.name_prefix}-ibrecipe-golden-al2023-arm64" }
+
+  lifecycle { create_before_destroy = true }
 }
 
 # Distribution configuration

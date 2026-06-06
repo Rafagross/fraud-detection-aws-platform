@@ -178,6 +178,20 @@ data "aws_iam_policy_document" "kms_key_policy" {
   }
 
   statement {
+    sid    = "AllowSNS"
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["sns.amazonaws.com"]
+    }
+    actions = [
+      "kms:GenerateDataKey*",
+      "kms:Decrypt",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
     sid    = "DenyKeyDeletionExceptBreakGlass"
     effect = "Deny"
     principals {
