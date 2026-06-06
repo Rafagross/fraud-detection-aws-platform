@@ -105,17 +105,19 @@ A higher-fidelity network and IAM diagram lives in [`docs/diagrams/`](docs/diagr
 
 | Item | Estimate (monthly, us-east-1) |
 |---|---|
-| `t4g.micro` EC2 (730h, on-demand) | ~$6.00 |
-| EBS gp3 30 GB encrypted | ~$2.40 |
+| 2 × `t4g.micro` EC2 (730h, on-demand) | ~$12.00 |
+| 2 × EBS gp3 30 GB encrypted | ~$4.80 |
 | 5 × VPC Interface Endpoints | ~$36.50 |
 | CloudWatch Logs (1 GB ingest, 7-day retention) | ~$0.55 |
 | CloudWatch metrics + alarms | ~$1–2 |
 | CloudWatch Dashboard (×1) | ~$3.00 |
-| AWS Backup (~30 GB warm + cold) | ~$3–5 |
+| AWS Backup (~60 GB warm + cold) | ~$4–6 |
 | KMS CMK | ~$1.00 |
 | EC2 Image Builder (~1 build/month, t3.medium minutes) | <$1.00 |
+| SQS (low volume) | ~$0 |
+| DynamoDB (on-demand, low volume) | ~$0 |
 | SNS (email, low volume) | ~$0 |
-| **Total** | **~$53–58/month** |
+| **Total** | **~$65–72/month** |
 
 Detailed cost model and the avoided-cost decisions are in [`docs/cost-model.md`](docs/cost-model.md).
 
@@ -133,8 +135,8 @@ The single largest line item is VPC Interface Endpoints. Forgetting to destroy t
 ├── terraform/
 │   ├── envs/dev/                   # Environment composition root
 │   └── modules/                    # vpc, vpc-endpoints, kms, iam-roles,
-│                                   # ec2-workload, image-builder,
-│                                   # observability, backup
+│                                   # ec2-workload, worker-infra,
+│                                   # image-builder, observability, backup
 ├── docs/
 │   ├── architecture.md             # Full design document
 │   ├── cost-model.md
@@ -186,7 +188,7 @@ The non-obvious choices are documented as ADRs in [`docs/decision-records/`](doc
 ## Status and roadmap
 
 **MVP (this repo, current scope):**
-VPC + endpoints, KMS, IAM, ASG-managed EC2 with Golden AMI, CloudWatch Agent + alarms, AWS Backup, EventBridge → SNS, SSM session logging, Patch Manager, CI checks, runbooks, ADRs.
+VPC + endpoints, KMS, IAM, ASG-managed EC2 (min=max=2) with Golden AMI, fraud transaction worker (SQS → EC2 → DynamoDB), CloudWatch Agent + alarms, AWS Backup, EventBridge → SNS → email, SSM session logging, immutable patching via Image Builder, runbooks, ADRs.
 
 **Phase 2 enhancements (planned, not in this repo):**
 - OIDC-based GitHub Actions deploy pipeline (plan on PR, apply on merge to `main`).
