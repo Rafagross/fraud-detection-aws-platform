@@ -14,6 +14,10 @@ data "aws_ec2_managed_prefix_list" "s3" {
   name = "com.amazonaws.${var.region}.s3"
 }
 
+data "aws_ec2_managed_prefix_list" "dynamodb" {
+  name = "com.amazonaws.${var.region}.dynamodb"
+}
+
 locals {
   diagnostics_bucket_name = "${var.project}-${var.environment}-s3-diagnostics-${data.aws_caller_identity.current.account_id}"
 }
@@ -83,6 +87,16 @@ module "vpc_endpoints" {
 
 # 6b. Wire vpce egress rule onto the workload SG — breaks circular dependency
 # ec2-workload creates its SG without this rule; we add it here once both SGs exist.
+resource "aws_security_group_rule" "workload_to_dynamodb" {
+  type              = "egress"
+  description       = "HTTPS to DynamoDB via gateway endpoint"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  security_group_id = module.ec2_workload.workload_sg_id
+  prefix_list_ids   = [data.aws_ec2_managed_prefix_list.dynamodb.id]
+}
+
 resource "aws_security_group_rule" "workload_to_vpce" {
   type                     = "egress"
   description              = "HTTPS to VPC interface endpoints"

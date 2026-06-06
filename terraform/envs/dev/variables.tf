@@ -39,7 +39,7 @@ variable "cost_center" {
 variable "alert_email" {
   description = "Email address for CloudWatch alarms, EventBridge alerts, and AWS Budgets."
   type        = string
-  default     = "rafagross15@gmail.com"
+  default     = ""
 }
 
 variable "ami_id" {

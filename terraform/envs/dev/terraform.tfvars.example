@@ -7,7 +7,7 @@ environment = "dev"
 project     = "cloudops"
 owner       = "Rafagross"
 cost_center = "portfolio"
-alert_email = "rafagross15@gmail.com"
+alert_email = "YOUR_EMAIL@example.com"
 
 # Get current AL2023 arm64 AMI:
 # aws ssm get-parameter \

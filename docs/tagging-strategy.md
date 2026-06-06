@@ -39,7 +39,7 @@ Used by AWS services or platform automation to make decisions. Adding or removin
 |---|---|---|
 | `Description` | Free-text purpose | `Workload host for heartbeat-api` |
 | `Documentation` | Link to runbook or doc | GitHub URL |
-| `Contact` | Who to call | `rafagross15@gmail.com` |
+| `Contact` | Who to call | `owner@example.com` |
 | `LastReviewedAt` | Date of last security/architecture review | `2026-04-29` |
 
 ---
