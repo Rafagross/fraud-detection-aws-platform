@@ -90,7 +90,7 @@ A higher-fidelity network and IAM diagram lives in [`docs/diagrams/`](docs/diagr
 | Operator shell access | SSM Session Manager over VPC Interface Endpoints, MFA-required, fully logged to CloudWatch |
 | Ad-hoc and scheduled operations | SSM Run Command with versioned documents |
 | Configuration management | SSM Parameter Store (Standard tier, SecureString where needed) |
-| Patching | SSM Patch Manager with a tag-targeted Maintenance Window |
+| Patching | Immutable — OS patches baked into Golden AMIs via EC2 Image Builder; running instances replaced via ASG refresh, never patched in place |
 | Observability | CloudWatch Agent (system + custom metrics), CloudWatch Logs, alarms on CPU/memory/disk/status, dashboard |
 | Alerting | EventBridge → SNS → email (Slack/PagerDuty deferred) |
 | Backup and recovery | AWS Backup, daily snapshots, 7d warm + 30d cold, KMS-encrypted vault |
