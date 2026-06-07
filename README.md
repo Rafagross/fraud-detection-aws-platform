@@ -131,6 +131,7 @@ The single largest line item is VPC Interface Endpoints. Forgetting to destroy t
 .
 ├── README.md                       # This file
 ├── LICENSE
+├── Makefile                        # make validate / plan / apply / destroy
 ├── .github/workflows/              # CI: terraform fmt, validate, tflint, checkov
 ├── terraform/
 │   ├── envs/dev/                   # Environment composition root
@@ -210,6 +211,30 @@ A managed database (no application use case), Kubernetes (out of scope for an EC
 - Terraform `>= 1.6`, AWS provider `>= 5.x`.
 - AWS CLI v2 configured with credentials for an IAM role that can assume the deploy role.
 - For SSM Session Manager: the AWS CLI Session Manager plugin installed locally.
+
+## Deploy flow
+
+```bash
+# 1. Bootstrap — one-time: creates S3 backend + DynamoDB lock table
+cd terraform/bootstrap && terraform init && terraform apply
+
+# 2. Configure
+cp terraform/envs/dev/terraform.tfvars.example terraform/envs/dev/terraform.tfvars
+# Edit terraform.tfvars: set alert_email and ami_id
+
+# 3. Static validation (no AWS credentials required)
+make validate
+
+# 4. Plan and apply
+make plan
+make apply
+
+# 5. Verify the platform is healthy
+./scripts/validation/post-deploy-checks.sh <instance-id> us-east-1
+
+# Teardown
+make destroy
+```
 
 ---
 
