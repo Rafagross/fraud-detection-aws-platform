@@ -65,6 +65,23 @@ aws dynamodb get-item \
 
 No public endpoint, no Application Load Balancer, no inbound rules.
 
+### 2.1 SQS processing model — retry, visibility, and poison messages
+
+| Property | Value | Rationale |
+|---|---|---|
+| Visibility timeout | 60 s | Worker has 60 s to write DynamoDB + delete the message before it re-enqueues |
+| Max receive count | 3 | A message that fails 3 times is moved to the DLQ instead of looping indefinitely |
+| DLQ retention | 14 days | Enough time to investigate root cause and replay valid messages |
+| Main queue retention | 4 days | Covers a weekend outage without message loss |
+
+**Happy path:** `ReceiveMessage` → score → `PutItem` (DynamoDB) → `DeleteMessage`. Total under 5 s per transaction.
+
+**DynamoDB failure:** `DeleteMessage` is skipped. The message becomes visible again after 60 s. If it fails 3 times total, SQS moves it to the DLQ automatically — this is the poison-message control. A CloudWatch alarm fires when the DLQ depth exceeds 0.
+
+**Idempotency:** `txn_id` is the DynamoDB hash key. If a message is processed twice (e.g., `DeleteMessage` timed out but `PutItem` succeeded), the second `PutItem` is a no-op — the original decision is preserved.
+
+**Business metrics:** After each successful decision the worker emits to CloudWatch namespace `FraudPlatform/Worker`: `Decisions` (count by `APPROVE` / `REVIEW` / `DENY`) and `FraudScore` (raw score, 0–99). Infrastructure metrics use the separate `CloudOpsPlatform/EC2` namespace so platform and application observability can be dashboarded and permissioned independently.
+
 ---
 
 ## 3. Network design

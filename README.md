@@ -95,6 +95,7 @@ A higher-fidelity network and IAM diagram lives in [`docs/diagrams/`](docs/diagr
 | Alerting | CloudWatch Alarms + EventBridge → SNS → email; events: EC2 state change, SSM Run Command failure, Backup job failure, KMS key deletion, break-glass role assumption (Slack/PagerDuty deferred) |
 | Backup and recovery | AWS Backup, daily snapshots, 7d warm + 30d cold, KMS-encrypted vault |
 | Fraud transaction processing | SQS queue → EC2 fraud-worker (Python) → DynamoDB; zero-downtime ASG rolling updates |
+| Poison-message handling | SQS Dead Letter Queue — messages failing 3× (DynamoDB write errors) are moved to DLQ automatically; CloudWatch alarm fires when DLQ depth > 0 |
 | Immutable infrastructure | EC2 Image Builder produces Golden AL2023 arm64 AMIs; Launch Template references the AMI ID via SSM Parameter |
 | Self-healing | Auto Scaling Group `min=max=2` across two AZs replaces failed instances automatically |
 | Encryption | Customer-managed KMS key for EBS, CloudWatch Logs, AWS Backup vault, SSM session logs |
