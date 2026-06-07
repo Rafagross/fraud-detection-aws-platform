@@ -292,7 +292,7 @@ Native EC2 + CloudWatch Agent custom namespace `CloudOpsPlatform/EC2`: `mem_used
 
 ### 7.4 Alerting
 
-EventBridge → SNS: EC2 state change to stopped/terminated, SSM Run Command failure, AWS Backup job failure. CloudWatch alarms → SNS. Email subscription in MVP.
+EventBridge → SNS: ASG workload instance termination (scoped to `cloudops-dev-asg-workload` — EC2 state-change events don't carry tags so the filter uses the ASG event source instead), SSM Run Command failure, AWS Backup job failure, KMS key deletion, break-glass role assumption. CloudWatch alarms → SNS. Email subscription in MVP.
 
 ---
 
