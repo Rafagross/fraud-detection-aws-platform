@@ -360,7 +360,45 @@ resource "aws_cloudwatch_dashboard" "overview" {
             "arn:aws:cloudwatch:${local.region}:${local.account_id}:alarm:${local.name_prefix}-alarm-disk-root-high",
             "arn:aws:cloudwatch:${local.region}:${local.account_id}:alarm:${local.name_prefix}-alarm-status-check-failed",
             "arn:aws:cloudwatch:${local.region}:${local.account_id}:alarm:${local.name_prefix}-alarm-cwagent-missing",
+            "arn:aws:cloudwatch:${local.region}:${local.account_id}:alarm:${local.name_prefix}-alarm-worker-dlq-depth",
           ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 15
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Fraud Decisions (APPROVE / REVIEW / DENY)"
+          region = local.region
+          metrics = [
+            ["FraudPlatform/Worker", "Decisions", "Decision", "APPROVE", { color = "#2ca02c", label = "APPROVE" }],
+            ["FraudPlatform/Worker", "Decisions", "Decision", "REVIEW",  { color = "#ff7f0e", label = "REVIEW"  }],
+            ["FraudPlatform/Worker", "Decisions", "Decision", "DENY",    { color = "#d62728", label = "DENY"    }],
+          ]
+          period = 300
+          stat   = "Sum"
+          view   = "timeSeries"
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 15
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Fraud Score Distribution (avg per 5 min)"
+          region = local.region
+          metrics = [
+            ["FraudPlatform/Worker", "FraudScore", { stat = "Average", label = "Average score" }],
+            ["FraudPlatform/Worker", "FraudScore", { stat = "p90",     label = "p90 score"     }],
+          ]
+          period = 300
+          view   = "timeSeries"
+          yAxis  = { left = { min = 0, max = 100 } }
         }
       },
     ]

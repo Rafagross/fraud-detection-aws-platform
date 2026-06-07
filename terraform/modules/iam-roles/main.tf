@@ -46,7 +46,9 @@ resource "aws_iam_role_policy" "workload_inline" {
         Action   = "cloudwatch:PutMetricData"
         Resource = "*"
         Condition = {
-          StringEquals = { "cloudwatch:namespace" = "CloudOpsPlatform/EC2" }
+          # Two namespaces: infrastructure metrics (CloudOpsPlatform/EC2) and
+          # business metrics emitted by the fraud-worker (FraudPlatform/Worker).
+          StringEquals = { "cloudwatch:namespace" = ["CloudOpsPlatform/EC2", "FraudPlatform/Worker"] }
         }
       },
       {
