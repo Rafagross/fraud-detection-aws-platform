@@ -76,10 +76,16 @@ import sys, json
 print(json.loads(sys.stdin.read()).get('amount', '0.00'))
 " 2>/dev/null || echo "0.00")
 
-  # Fraud scoring: random 0-100; in a real system this calls a rules engine or ML model
+  # Fraud scoring: random 0-99; in a real system this calls a rules engine or ML model.
+  # Thresholds: >75 = DENY (high risk), >50 = REVIEW (manual check), <=50 = APPROVE.
   SCORE=$(( RANDOM % 100 ))
-  DECISION="APPROVE"
-  [ "${SCORE}" -gt 75 ] && DECISION="DENY" || true
+  if [ "${SCORE}" -gt 75 ]; then
+    DECISION="DENY"
+  elif [ "${SCORE}" -gt 50 ]; then
+    DECISION="REVIEW"
+  else
+    DECISION="APPROVE"
+  fi
 
   TXN_ID="txn-$(python3 -c 'import uuid; print(uuid.uuid4())')"
   TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -111,6 +117,21 @@ print(json.dumps({
       log "WARN: delete-message failed for ${TXN_ID} — duplicate processing possible"
 
     log "PROCESSED txn=${TXN_ID} card=${CARD_ID} amount=${AMOUNT} score=${SCORE} decision=${DECISION}"
+
+    # Emit business-level metrics to CloudWatch — non-critical; failures are warned but do not
+    # affect transaction processing. Namespace FraudPlatform/Worker separates application
+    # observability from infrastructure metrics (CloudOpsPlatform/EC2).
+    METRIC_DATA=$(python3 -c "
+import json
+print(json.dumps([
+  {'MetricName': 'Decisions',   'Dimensions': [{'Name': 'Decision', 'Value': '${DECISION}'}], 'Value': 1,          'Unit': 'Count'},
+  {'MetricName': 'FraudScore',  'Value': ${SCORE}, 'Unit': 'None'},
+]))
+")
+    aws cloudwatch put-metric-data \
+      --namespace "FraudPlatform/Worker" \
+      --metric-data "${METRIC_DATA}" \
+      --region "${REGION}" 2>/dev/null || log "WARN: metric emission failed — non-critical"
   else
     log "ERROR: DynamoDB write failed for ${TXN_ID} — message returns to queue after visibility timeout"
   fi
