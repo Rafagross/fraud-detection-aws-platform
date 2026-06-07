@@ -62,5 +62,5 @@ variable "image_builder_logs_bucket" {
 variable "workload_name" {
   description = "Workload identifier used in resource names, tags, and SSM paths."
   type        = string
-  default     = "heartbeat-api"
+  default     = "fraud-worker"
 }

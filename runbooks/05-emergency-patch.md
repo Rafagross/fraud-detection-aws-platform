@@ -80,7 +80,7 @@ Use this only when Path A's 15–20 min window is too slow.
 
 1. **Systems Manager → Run Command → Run command**.
 2. **Document:** `AWS-RunShellScript`.
-3. **Targets:** select instance manually, or **Specify instance tags** with `Workload=heartbeat-api`.
+3. **Targets:** select instance manually, or **Specify instance tags** with `Workload=fraud-worker`.
 4. **Command parameters:**
    ```
    sudo dnf install -y <package-name>
@@ -117,13 +117,13 @@ Expect `Status = Success` and the `rpm -q` line in stdout matches the advisory's
 
 ### Step B.3 — Restart the workload service if needed
 
-If the patched library is loaded by `heartbeat-api`:
+If the patched library is loaded by `fraud-worker`:
 
 ```bash
 aws ssm send-command \
   --instance-ids <instance-id> \
   --document-name AWS-RunShellScript \
-  --parameters 'commands=["sudo systemctl restart heartbeat-api"]' \
+  --parameters 'commands=["sudo systemctl restart fraud-worker"]' \
   --region us-east-1
 ```
 
@@ -153,7 +153,7 @@ Within 24 hours, run Path A so the patch is durable. Open a tracking issue with 
 
 ```bash
 sudo dnf downgrade -y <package-name>-<previous-version>
-sudo systemctl restart heartbeat-api
+sudo systemctl restart fraud-worker
 ```
 
 ## Common failure modes
@@ -161,7 +161,7 @@ sudo systemctl restart heartbeat-api
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `dnf update` fails with `Cannot download repodata` | Egress blocked — instance has no DNS to repos | AL2023 dnf repos are reached via S3 gateway endpoint; verify the workload SG egress to S3 prefix list is intact |
-| Path B succeeded, alarm still firing | Service didn't reload patched library | Restart `heartbeat-api`; for glibc/openssl, only a reboot guarantees reload |
+| Path B succeeded, alarm still firing | Service didn't reload patched library | Restart `fraud-worker`; for glibc/openssl, only a reboot guarantees reload |
 | Path A pipeline failed in update-linux phase | Upstream AL2023 mirror temporarily unavailable | Retry; if persistent, escalate via AWS Support |
 | Patch reverted overnight | Instance was replaced by ASG before Path A completed | This is the entire reason Path B is ephemeral. Always follow Path B with Path A within 24h |
 

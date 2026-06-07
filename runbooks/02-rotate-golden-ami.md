@@ -12,7 +12,7 @@ One of:
 
 - **Scheduled monthly rebuild** (first Sunday 06:00 UTC) — Image Builder pipeline ran automatically; you need to validate and roll forward.
 - **CVE / out-of-band patch** — you need to rebuild the AMI before the next scheduled run. For CVE-only emergencies, use [Runbook 05 — Emergency Patch](05-emergency-patch.md) instead.
-- **Configuration change** — new component version (CloudWatch Agent, heartbeat-api, CIS hardening rule).
+- **Configuration change** — new component version (CloudWatch Agent, fraud-worker script, CIS hardening rule).
 
 ## Prerequisites
 
@@ -129,7 +129,7 @@ After the refresh shows `Successful`:
 
 2. **SSM Agent is Online** — Systems Manager → Fleet Manager.
 
-3. **heartbeat-api is healthy** — run `scripts/validation/post-deploy-checks.sh <new-instance-id> us-east-1`. All 4 checks must pass.
+3. **fraud-worker is healthy** — run `scripts/validation/post-deploy-checks.sh <new-instance-id> us-east-1`. All checks must pass.
 
 4. **No `cloudops-dev-alarm-status-check-failed` alarm** firing for the new instance.
 

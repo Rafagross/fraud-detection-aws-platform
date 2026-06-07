@@ -4,7 +4,7 @@ variable "environment" { type = string }
 variable "workload_name" {
   description = "Workload identifier used in log group names and parameter paths."
   type        = string
-  default     = "heartbeat-api"
+  default     = "fraud-worker"
 }
 
 variable "kms_key_arn" {

@@ -44,7 +44,7 @@ Use **SSM Parameter Store, Standard tier** for all configuration and secret stor
 ## Consequences
 
 - `kms:Decrypt` conditioned on `kms:ViaService = ssm.us-east-1.amazonaws.com`.
-- Rotation for the `heartbeat-api` API token is manual, documented as a runbook.
+- Rotation for the fraud-worker API token is manual, documented as a runbook.
 
 ## Revisit when
 

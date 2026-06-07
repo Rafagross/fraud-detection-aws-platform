@@ -58,28 +58,28 @@ else
   fail "CloudWatch Agent status: '$CWA_STATUS' (expected: active)"
 fi
 
-# 3. heartbeat-api /health via port forwarding (non-blocking check)
-log "Checking heartbeat-api /health via SSM Run Command..."
+# 3. fraud-worker.service is active
+log "Checking fraud-worker.service status via SSM Run Command..."
 COMMAND_ID=$(aws ssm send-command \
   --instance-ids "$INSTANCE_ID" \
   --document-name "AWS-RunShellScript" \
-  --parameters 'commands=["curl -sf http://127.0.0.1:8080/health"]' \
+  --parameters 'commands=["systemctl is-active fraud-worker.service"]' \
   --region "$REGION" \
   --query 'Command.CommandId' \
   --output text)
 
 sleep 5
-HEALTH_OUTPUT=$(aws ssm get-command-invocation \
+WORKER_STATUS=$(aws ssm get-command-invocation \
   --command-id "$COMMAND_ID" \
   --instance-id "$INSTANCE_ID" \
   --region "$REGION" \
-  --query 'StatusDetails' \
-  --output text 2>/dev/null)
+  --query 'StandardOutputContent' \
+  --output text 2>/dev/null | tr -d '\n')
 
-if [[ "$HEALTH_OUTPUT" == "Success" ]]; then
-  pass "heartbeat-api /health returned 200"
+if [[ "$WORKER_STATUS" == "active" ]]; then
+  pass "fraud-worker.service is active"
 else
-  fail "heartbeat-api /health check status: $HEALTH_OUTPUT"
+  fail "fraud-worker.service status: '$WORKER_STATUS' (expected: active)"
 fi
 
 # 4. IMDSv2 enforcement

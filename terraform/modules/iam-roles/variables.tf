@@ -11,7 +11,7 @@ variable "environment" {
 variable "workload_name" {
   description = "Workload identifier used for IAM resource scoping."
   type        = string
-  default     = "heartbeat-api"
+  default     = "fraud-worker"
 }
 
 variable "kms_key_arn" {

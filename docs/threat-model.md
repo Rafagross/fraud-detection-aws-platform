@@ -28,7 +28,7 @@ For controls catalog, see [`security-baseline.md`](security-baseline.md).
 
 | Threat | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| Modification of `heartbeat-api` binary | Low | High | Binary baked into Golden AMI; runtime modification fully logged via SSM session audit |
+| Modification of fraud-worker script | Low | High | Script baked into Golden AMI; runtime modification fully logged via SSM session audit |
 | Tampering with CloudWatch logs | Low | High | KMS-encrypted; `DeleteLogGroup` not granted to workload role; CloudTrail captures all CW API calls |
 | Tampering with backup recovery points | Low | High | Vault access policy denies `DeleteRecoveryPoint` to non-break-glass; KMS encryption |
 | Tampering with AMI ID SSM Parameter | Low | High | Writable only by Image Builder distribution role; CloudTrail logs writes |
@@ -47,14 +47,14 @@ For controls catalog, see [`security-baseline.md`](security-baseline.md).
 | EBS snapshot accessed by unauthorized party | Low | High | Encrypted with CMK; vault access policy restricts |
 | CloudWatch log content accessed | Low | High | Log groups KMS-encrypted; `GetLogEvents` requires `kms:Decrypt` |
 | Parameter Store SecureString via stolen workload role | Low | High | `kms:ViaService` condition; access from outside SSM service path denied |
-| SSRF from `heartbeat-api` reaches instance metadata | Low | High | IMDSv2 required, hop limit 1 |
+| SSRF from fraud-worker reaches instance metadata | Low | High | IMDSv2 required, hop limit 1; fraud-worker runs as `nobody` with no network-facing listener |
 
 ### 2.5 Denial of service
 
 | Threat | Likelihood | Impact | Mitigation |
 |---|---|---|---|
 | EC2 instance failure | Low | Medium | ASG `min=max=1` replaces automatically (~3 min RTO) |
-| CloudWatch agent crash | Low | Medium | `instance-heartbeat-missing` alarm fires when metrics stop arriving |
+| CloudWatch agent crash | Low | Medium | `cwagent-missing` alarm fires when metrics stop arriving |
 | Application crash / hang | Medium | Medium | systemd `Restart=on-failure`; cpu-high and mem-high alarms |
 | Runaway log ingestion (cost DoS) | Medium | Low (cost) | Per-log-group `IncomingBytes` alarm |
 | Region failure | Very low | Critical | **Not mitigated in MVP** — see `backup-strategy.md` Section 8 |

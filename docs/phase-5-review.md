@@ -40,7 +40,7 @@ All runbooks follow structure: Trigger / Prerequisites / Impact / Procedure / Va
 - **Private EC2 workload** — no NAT, no bastion, no SSH
 - **VPC endpoints only** — 5 interface (ssm, ssmmessages, ec2messages, logs, monitoring) + 1 S3 gateway
 - **Single CMK** for all encryption (EBS, S3, KMS, logs)
-- **Golden AMI pipeline** — AL2023 arm64, 4 components (CIS baseline, CloudWatch Agent, heartbeat-api, cleanup), monthly cron + on-demand
+- **Golden AMI pipeline** — AL2023 arm64, 4 components (CIS baseline, CloudWatch Agent, fraud-worker install, cleanup), monthly cron + on-demand
 - **AWS Backup** — daily 05:00 UTC, warm 7d, cold 90d, delete 97d; RPO 24h, RTO 1h in-region
 - **Observability** — 6 alarms, 5 EventBridge rules, SNS topic, CloudWatch dashboard, SSM Parameter Store, AWS Budgets
 - **Cost:** ~$54.80/month estimated; $100/month ceiling

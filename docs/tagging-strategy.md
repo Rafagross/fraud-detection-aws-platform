@@ -28,7 +28,7 @@ Used by AWS services or platform automation to make decisions. Adding or removin
 |---|---|---|
 | `Backup` | `daily`, `none` | AWS Backup plan selects `Backup=daily`; untagged resources not backed up |
 | `Patch` | `auto`, `manual`, `none` | SSM Patch Manager Maintenance Window targets `Patch=auto` |
-| `Workload` | Workload ID (e.g., `heartbeat-api`) | CloudWatch metric filters, log routing, alarm scoping |
+| `Workload` | Workload ID (e.g., `fraud-worker`) | CloudWatch metric filters, log routing, alarm scoping |
 | `BackupPlan` | Plan name (e.g., `daily`) | Auto-applied by AWS Backup to recovery points |
 
 ---
@@ -37,7 +37,7 @@ Used by AWS services or platform automation to make decisions. Adding or removin
 
 | Tag | Purpose | Example |
 |---|---|---|
-| `Description` | Free-text purpose | `Workload host for heartbeat-api` |
+| `Description` | Free-text purpose | `Workload host for fraud-worker` |
 | `Documentation` | Link to runbook or doc | GitHub URL |
 | `Contact` | Who to call | `owner@example.com` |
 | `LastReviewedAt` | Date of last security/architecture review | `2026-04-29` |
@@ -135,7 +135,7 @@ resource "aws_autoscaling_group" "workload" {
   }
   tag {
     key                 = "Workload"
-    value               = "heartbeat-api"
+    value               = "fraud-worker"
     propagate_at_launch = true
   }
 }
