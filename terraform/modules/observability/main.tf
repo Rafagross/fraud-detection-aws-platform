@@ -180,15 +180,21 @@ resource "aws_cloudwatch_metric_alarm" "log_ingestion_app_high" {
 }
 
 # EventBridge rules
+# EC2 Instance State-change events (aws.ec2) do not include instance tags in
+# the event payload, so filtering by Workload=fraud-worker is not possible
+# at the EventBridge pattern level. Auto Scaling group events (aws.autoscaling)
+# DO include AutoScalingGroupName in the detail, which lets us scope the alert
+# to the workload ASG only — avoiding noise from Image Builder build/test
+# instances and any other transient EC2 activity in the account.
 resource "aws_cloudwatch_event_rule" "ec2_state_change" {
-  name        = "${local.name_prefix}-evt-ec2-state-change"
-  description = "Alert when a workload instance is stopped or terminated"
+  name        = "${local.name_prefix}-evt-workload-terminated"
+  description = "Alert when a workload ASG instance terminates — scoped to ${var.asg_name} to filter out Image Builder and other transient instances"
   event_pattern = jsonencode({
-    source      = ["aws.ec2"]
-    detail-type = ["EC2 Instance State-change Notification"]
-    detail      = { state = ["stopped", "terminated"] }
+    source      = ["aws.autoscaling"]
+    detail-type = ["EC2 Instance Terminate Successful", "EC2 Instance Terminate Unsuccessful"]
+    detail      = { AutoScalingGroupName = [var.asg_name] }
   })
-  tags = { Name = "${local.name_prefix}-evt-ec2-state-change" }
+  tags = { Name = "${local.name_prefix}-evt-workload-terminated" }
 }
 
 resource "aws_cloudwatch_event_target" "ec2_state_change_sns" {
@@ -196,6 +202,7 @@ resource "aws_cloudwatch_event_target" "ec2_state_change_sns" {
   target_id = "SNSAlerts"
   arn       = aws_sns_topic.alerts.arn
 }
+
 
 resource "aws_cloudwatch_event_rule" "ssm_run_command_failed" {
   name        = "${local.name_prefix}-evt-ssm-run-command-failed"
