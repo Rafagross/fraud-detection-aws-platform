@@ -8,7 +8,7 @@
 
 ## Trigger
 
-You need to access the workload EC2 instance to investigate behavior, run diagnostics, port-forward to `heartbeat-api`, or collect a support bundle.
+You need to access the workload EC2 instance to investigate behavior, check fraud-worker status, run diagnostics, or collect a support bundle.
 
 ## Prerequisites
 
@@ -66,23 +66,19 @@ If status is `Connection lost` or the instance is not listed, **stop here** and 
 aws ssm start-session --target $INSTANCE_ID --region us-east-1
 ```
 
-### Step 4 — (Optional) Port-forward to heartbeat-api
+### Step 4 — (Optional) Check fraud-worker status
 
-Use this when you need to hit `http://127.0.0.1:8080/health` from your laptop without leaving the SSM tunnel.
-
-```bash
-aws ssm start-session \
-  --target $INSTANCE_ID \
-  --document-name AWS-StartPortForwardingSession \
-  --parameters '{"portNumber":["8080"],"localPortNumber":["18080"]}' \
-  --region us-east-1
-```
-
-Then, in a second terminal:
+From inside the SSM session, verify the worker is running and polling the queue:
 
 ```bash
-curl -i http://127.0.0.1:18080/health
-# Expect: HTTP/1.1 200 OK
+# Confirm the service is active
+sudo systemctl status fraud-worker.service
+
+# Stream live output (Ctrl-C to stop)
+sudo journalctl -u fraud-worker.service -f
+
+# Check recent logs for errors
+sudo journalctl -u fraud-worker.service --since "1 hour ago" --no-pager | grep -i "error\|warn\|fail"
 ```
 
 ### Step 5 — (Optional) Collect a diagnostic bundle
@@ -95,9 +91,9 @@ sudo bash -c '
   BUNDLE=/tmp/diag-$TS.tar.gz
   tar czf $BUNDLE \
     /var/log/messages \
-    /var/log/heartbeat/app.log \
+    /var/log/fraud-worker/app.log \
     /var/log/cloud-init-output.log \
-    /etc/systemd/system/heartbeat-api.service 2>/dev/null
+    /etc/systemd/system/fraud-worker.service 2>/dev/null
   aws s3 cp $BUNDLE s3://cloudops-dev-s3-diagnostics-<account-id>/diag/ --region us-east-1
   echo "Uploaded $BUNDLE"
 '
@@ -110,7 +106,7 @@ The diagnostics bucket is SSE-KMS encrypted and has a 30-day lifecycle.
 ## Validation
 
 - The interactive shell prompt returns commands successfully (e.g. `whoami` → `ssm-user`).
-- Port-forward case: `curl -i http://127.0.0.1:18080/health` returns `HTTP/1.1 200 OK`.
+- Worker status case: `systemctl is-active fraud-worker.service` returns `active`.
 - Diagnostic bundle case: object visible under `s3://cloudops-dev-s3-diagnostics-<account-id>/diag/`.
 - Audit: confirm session entry exists in CloudWatch Logs `/aws/ssm/sessions`.
 
@@ -124,7 +120,7 @@ None — sessions terminate cleanly on `exit` or Ctrl-D. No persistent change is
 |---|---|---|
 | `TargetNotConnected` | SSM Agent down on instance, or VPC endpoint failure | Trigger ASG instance refresh, then check `cloudops-dev-vpce-ssm` endpoint health |
 | `AccessDeniedException` on `StartSession` | IAM principal lacks `ssm:StartSession` for resource | Add session permissions; do **not** assume the break-glass role for routine access |
-| Port-forward hangs | Instance SG missing self-egress, or `heartbeat-api` not listening | SSM into instance and run `ss -tlnp \| grep 8080` |
+| `fraud-worker.service` failed | Script missing or SQS/DDB endpoint unreachable | Check `journalctl -u fraud-worker.service -n 50`; confirm `workload_to_vpce` SG rule exists |
 
 ## Related
 

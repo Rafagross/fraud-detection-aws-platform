@@ -195,55 +195,6 @@ resource "aws_imagebuilder_component" "cwagent_install" {
   lifecycle { create_before_destroy = true }
 }
 
-resource "aws_imagebuilder_component" "heartbeat_api_install" {
-  name     = "${local.name_prefix}-ibcomp-heartbeat-api-install"
-  platform = "Linux"
-  version  = "1.0.0"
-  data = yamlencode({
-    name          = "heartbeat-api Install"
-    schemaVersion = "1.0"
-    phases = [
-      {
-        name = "build"
-        steps = [
-          {
-            name   = "CreateDirs"
-            action = "ExecuteBash"
-            inputs = { commands = ["mkdir -p /usr/local/bin /etc/heartbeat /var/log/heartbeat"] }
-          },
-          {
-            name   = "InstallService"
-            action = "ExecuteBash"
-            inputs = {
-              commands = [
-                "printf '[Unit]\\nDescription=heartbeat-api\\nAfter=network.target\\n[Service]\\nType=simple\\nUser=nobody\\nExecStart=/usr/local/bin/heartbeat-api\\nRestart=on-failure\\n[Install]\\nWantedBy=multi-user.target\\n' > /etc/systemd/system/heartbeat-api.service",
-                "systemctl daemon-reload",
-                "systemctl enable heartbeat-api.service",
-              ]
-            }
-          },
-        ]
-      },
-      {
-        name = "validate"
-        steps = [{
-          name   = "ValidateIMDSv2"
-          action = "ExecuteBash"
-          inputs = {
-            commands = [
-              "HTTP=$(curl -s -o /dev/null -w '%%{http_code}' http://169.254.169.254/latest/meta-data/ --max-time 2 || echo 000)",
-              "[ \"$HTTP\" = '401' ] || exit 1",
-            ]
-          }
-        }]
-      },
-    ]
-  })
-  tags = { Name = "${local.name_prefix}-ibcomp-heartbeat-api-install" }
-
-  lifecycle { create_before_destroy = true }
-}
-
 locals {
   # base64-encode the script so yamlencode produces a clean single-line
   # shell command — avoids heredoc quoting issues inside YAML strings.
@@ -371,7 +322,6 @@ resource "aws_imagebuilder_image_recipe" "golden_al2023_arm64" {
   }
   component { component_arn = aws_imagebuilder_component.cis_baseline.arn }
   component { component_arn = aws_imagebuilder_component.cwagent_install.arn }
-  component { component_arn = aws_imagebuilder_component.heartbeat_api_install.arn }
   component { component_arn = aws_imagebuilder_component.fraud_worker_install.arn }
   component { component_arn = aws_imagebuilder_component.cleanup.arn }
 

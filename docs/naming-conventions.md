@@ -102,20 +102,23 @@ Examples: `cloudops-dev-subnet-private-app-a`, `cloudops-dev-subnet-private-vpce
 Examples:
 - `/cloudops/dev/golden-ami/al2023-arm64/latest`
 - `/cloudops/dev/cloudwatch-agent/config/standard`
-- `/cloudops/dev/app/heartbeat-api/log-level`
-- `/cloudops/dev/app/heartbeat-api/api-token` (SecureString)
+- `/cloudops/dev/worker/sqs-queue-url`
+- `/cloudops/dev/worker/dynamodb-table-name`
+- `/cloudops/dev/app/fraud-worker/log-level`
+- `/cloudops/dev/app/fraud-worker/api-token` (SecureString)
 
 Enables IAM resource scoping by path prefix:
 ```
-Resource: arn:aws:ssm:us-east-1:<acct>:parameter/cloudops/dev/app/heartbeat-api/*
+Resource: arn:aws:ssm:us-east-1:<acct>:parameter/cloudops/dev/app/fraud-worker/*
+Resource: arn:aws:ssm:us-east-1:<acct>:parameter/cloudops/dev/worker/*
 ```
 
 ### 4.4 CloudWatch Log Groups
 
 Conventional `/aws/<service>/...` prefix:
-- `/aws/ec2/heartbeat-api/system`
-- `/aws/ec2/heartbeat-api/app`
-- `/aws/ec2/heartbeat-api/audit`
+- `/aws/ec2/fraud-worker/system`
+- `/aws/ec2/fraud-worker/app`
+- `/aws/ec2/fraud-worker/audit`
 - `/aws/ssm/sessions`
 - `/aws/vpc/flowlogs`
 

@@ -17,7 +17,7 @@ scripts/
 └── validation/
     └── post-deploy-checks.sh           # Smoke tests run after terraform apply
                                          # Verifies: SSM reachability, CW Agent status,
-                                         # heartbeat-api /health response, backup vault exists
+                                         # fraud-worker.service active, backup vault exists
 ```
 
 ---

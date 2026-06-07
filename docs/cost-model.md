@@ -75,7 +75,7 @@ KMS ($1/key), Image Builder (~$0.50/month for one monthly build), SNS (free at t
 | AWS Config | ~$2/resource/month | Phase 2; Terraform `default_tags` covers required-tags use case for free |
 | Security Hub | ~$5–10/month | Phase 2 |
 | Inspector | ~$1–2/month | Phase 2; slots into Image Builder pipeline |
-| RDS / DynamoDB | $13+/month minimum | No application use case; `heartbeat-api` is stateless |
+| RDS | $13+/month minimum | No relational use case; fraud-worker uses DynamoDB (near-zero cost at PoC volume via Gateway Endpoint) |
 | Application Load Balancer | ~$16/month | No public-facing component |
 
 **Total cost avoided: ~$80–120/month.** That margin is what makes this design defensible at the $100 ceiling.
@@ -104,8 +104,8 @@ Alarms per log group on `IncomingBytes`:
 
 | Log Group | Threshold | Normal baseline |
 |---|---|---|
-| `/aws/ec2/heartbeat-api/app` | > 500 MB / 24h | ~30 MB/day |
-| `/aws/ec2/heartbeat-api/system` | > 200 MB / 24h | ~10 MB/day |
+| `/aws/ec2/fraud-worker/app` | > 500 MB / 24h | ~30 MB/day |
+| `/aws/ec2/fraud-worker/system` | > 200 MB / 24h | ~10 MB/day |
 | `/aws/vpc/flowlogs` | > 5 GB / 24h | ~50 MB/day |
 
 First response: SSM Session Manager connect, log file inspection, service restart via Run Command, or temporary log-level change via Parameter Store.

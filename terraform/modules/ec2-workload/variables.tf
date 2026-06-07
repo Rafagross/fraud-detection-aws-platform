@@ -4,7 +4,7 @@ variable "environment" { type = string }
 variable "workload_name" {
   description = "Workload identifier."
   type        = string
-  default     = "heartbeat-api"
+  default     = "fraud-worker"
 }
 
 variable "vpc_id" {

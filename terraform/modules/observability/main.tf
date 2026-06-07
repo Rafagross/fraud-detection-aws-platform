@@ -68,8 +68,8 @@ data "aws_iam_policy_document" "sns_alerts_policy" {
 # CloudWatch Log Groups
 locals {
   log_groups = {
-    system   = { name = "/aws/ec2/${var.workload_name}/system", retention = 7 }
-    app      = { name = "/aws/ec2/${var.workload_name}/app", retention = 7 }
+    system   = { name = "/aws/ec2/${var.workload_name}/system", retention = 30 }
+    app      = { name = "/aws/ec2/${var.workload_name}/app", retention = 30 }
     audit    = { name = "/aws/ec2/${var.workload_name}/audit", retention = 30 }
     sessions = { name = "/aws/ssm/sessions", retention = 30 }
   }
@@ -148,9 +148,9 @@ resource "aws_cloudwatch_metric_alarm" "disk_root_high" {
   tags                = { Name = "${local.name_prefix}-alarm-disk-root-high" }
 }
 
-resource "aws_cloudwatch_metric_alarm" "instance_heartbeat_missing" {
-  alarm_name          = "${local.name_prefix}-alarm-instance-heartbeat-missing"
-  alarm_description   = "No mem_used_percent for 15 min — agent may be down"
+resource "aws_cloudwatch_metric_alarm" "cwagent_missing" {
+  alarm_name          = "${local.name_prefix}-alarm-cwagent-missing"
+  alarm_description   = "No mem_used_percent for 15 min — CloudWatch Agent may be down or instance unresponsive"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 3
   metric_name         = "mem_used_percent"
@@ -160,7 +160,7 @@ resource "aws_cloudwatch_metric_alarm" "instance_heartbeat_missing" {
   threshold           = 0
   treat_missing_data  = "ignore"
   alarm_actions       = [aws_sns_topic.alerts.arn]
-  tags                = { Name = "${local.name_prefix}-alarm-instance-heartbeat-missing" }
+  tags                = { Name = "${local.name_prefix}-alarm-cwagent-missing" }
 }
 
 resource "aws_cloudwatch_metric_alarm" "log_ingestion_app_high" {
@@ -352,7 +352,7 @@ resource "aws_cloudwatch_dashboard" "overview" {
             "arn:aws:cloudwatch:${local.region}:${local.account_id}:alarm:${local.name_prefix}-alarm-mem-high",
             "arn:aws:cloudwatch:${local.region}:${local.account_id}:alarm:${local.name_prefix}-alarm-disk-root-high",
             "arn:aws:cloudwatch:${local.region}:${local.account_id}:alarm:${local.name_prefix}-alarm-status-check-failed",
-            "arn:aws:cloudwatch:${local.region}:${local.account_id}:alarm:${local.name_prefix}-alarm-instance-heartbeat-missing",
+            "arn:aws:cloudwatch:${local.region}:${local.account_id}:alarm:${local.name_prefix}-alarm-cwagent-missing",
           ]
         }
       },

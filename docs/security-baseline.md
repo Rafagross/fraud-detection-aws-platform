@@ -94,12 +94,12 @@ Single CMK, symmetric, `SYMMETRIC_DEFAULT`. Annual automatic rotation enabled. K
 | OS patches up-to-date at bake time | `update-linux` component runs first |
 | Unused services disabled | `cloudops-cis-baseline` component |
 | `sshd` configured, not used | `PermitRootLogin no`, `PasswordAuthentication no` |
-| `auditd` enabled | Ships to `/aws/ec2/heartbeat-api/audit` |
+| `auditd` enabled | Ships to `/aws/ec2/fraud-worker/audit` |
 | Sysctl hardening | rp_filter, ASLR, IPv6 redirects disabled |
 | IMDSv2 enforced | Launch Template `http_tokens = required`, hop limit 1 |
 | No SSH key pair | Launch Template has no `key_name` |
 
-Image Builder validation tests run before AMI publish: SSM Agent, CloudWatch Agent, heartbeat-api all `active (running)`; IMDSv2 enforcement verified; no listening ports on `0.0.0.0`.
+Image Builder validation tests run before AMI publish: SSM Agent, CloudWatch Agent, and fraud-worker script present and service enabled; IMDSv2 enforcement verified; no listening ports on `0.0.0.0`.
 
 ---
 
@@ -109,10 +109,10 @@ Image Builder validation tests run before AMI publish: SSM Agent, CloudWatch Age
 |---|---|---|
 | AWS API calls | CloudTrail (assumed) | Per account trail config |
 | SSM Session Manager | `/aws/ssm/sessions` | 30 days |
-| auditd (instance-level) | `/aws/ec2/heartbeat-api/audit` | 30 days |
+| auditd (instance-level) | `/aws/ec2/fraud-worker/audit` | 30 days |
 | VPC traffic | `/aws/vpc/flowlogs` | 14 days |
-| Application logs | `/aws/ec2/heartbeat-api/app` | 7 days |
-| System logs | `/aws/ec2/heartbeat-api/system` | 7 days |
+| Application logs | `/aws/ec2/fraud-worker/app` | 30 days |
+| System logs | `/aws/ec2/fraud-worker/system` | 30 days |
 
 EventBridge rules: break-glass role assumption, `kms:ScheduleKeyDeletion` on platform CMK, AWS Backup job failures → all route to SNS.
 

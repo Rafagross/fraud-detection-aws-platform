@@ -179,7 +179,7 @@ The non-obvious choices are documented as ADRs in [`docs/decision-records/`](doc
 2. [SSM-only access — no SSH, no bastion](docs/decision-records/0002-ssm-only-access.md)
 3. [Amazon Linux 2023 on Graviton (`arm64`)](docs/decision-records/0003-amazon-linux-2023-on-graviton.md)
 4. [Single customer-managed KMS key for MVP](docs/decision-records/0004-single-cmk-for-mvp.md)
-5. [Auto Scaling Group `min=max=1` for self-healing](docs/decision-records/0005-asg-min-max-1-for-self-healing.md)
+5. [Auto Scaling Group `min=max=2` for self-healing and zero-downtime updates](docs/decision-records/0005-asg-min-max-1-for-self-healing.md)
 6. [Parameter Store over Secrets Manager](docs/decision-records/0006-parameter-store-over-secrets-manager.md)
 7. [VPC Flow Logs to CloudWatch Logs](docs/decision-records/0007-vpc-flow-logs.md)
 

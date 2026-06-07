@@ -20,16 +20,21 @@ systemctl is-active --quiet amazon-ssm-agent \
 
 echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] CloudWatch Agent configured and started"
 
-systemctl enable heartbeat-api.service
-systemctl start heartbeat-api.service
+systemctl enable fraud-worker.service
+systemctl start fraud-worker.service
 
-RETRIES=5
+RETRIES=6
 for i in $(seq 1 $RETRIES); do
-  if curl -sf http://127.0.0.1:8080/health > /dev/null 2>&1; then
-    echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] heartbeat-api /health OK"
+  if systemctl is-active --quiet fraud-worker.service; then
+    echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] fraud-worker.service is active"
     break
   fi
-  echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Waiting for heartbeat-api ($i/$RETRIES)..."
+  if [ "$i" -eq "$RETRIES" ]; then
+    echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] fraud-worker.service failed to start after $RETRIES attempts"
+    journalctl -u fraud-worker.service --no-pager -n 20
+    exit 1
+  fi
+  echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Waiting for fraud-worker ($i/$RETRIES)..."
   sleep 10
 done
 

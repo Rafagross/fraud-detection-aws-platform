@@ -13,10 +13,10 @@ A CloudWatch alarm transitioned to `ALARM` and you received an SNS email. Common
 | Alarm name | Severity | Likely root cause |
 |---|---|---|
 | `cloudops-dev-alarm-cpu-high` | P3 | Runaway process, sustained workload spike |
-| `cloudops-dev-alarm-mem-high` | P3 | Memory leak in `heartbeat-api`, log buffer growth |
+| `cloudops-dev-alarm-mem-high` | P3 | Memory leak in fraud-worker, log buffer growth |
 | `cloudops-dev-alarm-disk-root-high` | P2 | Log rotation broken, journald accumulation |
 | `cloudops-dev-alarm-status-check-failed` | P1 | Instance hardware/network failure — ASG replacement imminent |
-| `cloudops-dev-alarm-instance-heartbeat-missing` | P1 | CloudWatch Agent crashed, instance frozen, or VPC endpoint failure |
+| `cloudops-dev-alarm-cwagent-missing` | P1 | CloudWatch Agent crashed, instance frozen, or VPC endpoint failure |
 | `cloudops-dev-alarm-log-ingestion-app-high` | P3 | Logging loop, debug level left on, application error spam |
 
 ## Prerequisites
@@ -68,7 +68,7 @@ ps aux --sort=-%mem | head -10
 free -h
 ```
 
-If `heartbeat-api` is the offender → restart it (`sudo systemctl restart heartbeat-api`) and capture logs from `/var/log/heartbeat/app.log` for the post-mortem.
+If `fraud-worker` is the offender → restart it (`sudo systemctl restart fraud-worker`) and capture logs from `journalctl -u fraud-worker.service` for the post-mortem.
 
 #### Disk root high
 
@@ -123,7 +123,7 @@ aws autoscaling set-instance-health \
 
 Query Logs Insights to find the noisy source:
 
-**Console: CloudWatch → Logs Insights** → log group `/aws/ec2/heartbeat-api/app` → time range = last 24h:
+**Console: CloudWatch → Logs Insights** → log group `/aws/ec2/fraud-worker/app` → time range = last 24h:
 
 ```
 fields @timestamp, @message
@@ -141,7 +141,7 @@ fields @timestamp, @message
 | limit 20
 ```
 
-Fix at the source — change app log level via `aws ssm put-parameter --name /cloudops/dev/app/heartbeat-api/log-level --value warn --overwrite`, then restart `heartbeat-api`.
+Fix at the source — change app log level via `aws ssm put-parameter --name /cloudops/dev/app/fraud-worker/log-level --value warn --overwrite`, then restart `fraud-worker`.
 
 ---
 
@@ -162,7 +162,7 @@ Fix at the source — change app log level via `aws ssm put-parameter --name /cl
 |---|---|---|
 | Alarm flaps `OK` ↔ `ALARM` repeatedly | Threshold too tight, or workload pattern crosses boundary | Adjust threshold or evaluation periods; check `cost-model.md` for log volume sizing |
 | Heartbeat alarm fires but instance is fine in console | `mem_used_percent` dimension changed (e.g. agent restart) | Confirm metric is still being emitted; if dimension drift is the root cause, file an issue to align Terraform alarm dimensions |
-| Disk alarm clears but recurs same day | Log rotation not running | Check `/etc/logrotate.d/heartbeat`; bake rotation into the next AMI build |
+| Disk alarm clears but recurs same day | Log rotation not running | Check `/etc/logrotate.d/fraud-worker`; bake rotation into the next AMI build |
 
 ## Related
 

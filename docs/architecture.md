@@ -17,7 +17,7 @@ For shorter "why" answers on individual decisions, see the ADRs under [`decision
 - Be defensible in a senior-level technical interview — every choice has a documented reason.
 
 ### Non-goals
-- Running a managed database. The fictional workload (`heartbeat-api`) is stateless by design; introducing RDS or DynamoDB would inflate cost without strengthening the platform narrative.
+- Running a relational managed database (RDS). The fraud-worker uses DynamoDB for decision persistence — serverless, near-zero cost at PoC volume, routed free via Gateway Endpoint, and directly relevant to the fraud detection narrative. RDS would add ~$20/month minimum without adding to the platform story.
 - Multi-account or organization-level controls. This repo provisions a single workload pattern in a single account. The org structure is assumed to exist.
 - Human identity (SSO, permission sets, MFA enforcement at the IAM Identity Center level). The platform builds *workload* IAM roles; operator IAM is upstream.
 - Multi-region disaster recovery. In-region durability via AWS Backup is the MVP; multi-region copy is a Phase 2 enhancement.
@@ -25,32 +25,45 @@ For shorter "why" answers on individual decisions, see the ADRs under [`decision
 
 ---
 
-## 2. The fictional workload: `heartbeat-api`
+## 2. The fraud-worker service
 
-A small Go HTTP service exists so the platform has something real to operate, observe, back up, and patch. It is not the point of the project — the platform is — but it gives the runbooks and alarms genuine signal.
+A Python poll-loop worker gives the platform something real to operate, observe, back up, and patch. It is not the point of the project — the platform is — but it provides genuine signal to the runbooks, alarms, and automation.
 
 | Property | Value |
 |---|---|
-| Language | Go (single static `arm64` binary) |
-| Listener | `127.0.0.1:8080` only (never exposed beyond the instance) |
-| Endpoints | `GET /health`, `GET /metrics` (Prometheus format), `GET /work?ms=N` |
-| Process model | systemd unit `heartbeat-api.service` |
-| Config file | `/etc/heartbeat/config.yaml` |
-| Log destination | `/var/log/heartbeat/app.log` (shipped to CloudWatch Logs by the agent) |
-| External dependencies | None |
+| Language | Python 3 |
+| Runtime model | Long-running poll loop — not an HTTP server |
+| Function | Polls `fraud-transactions` SQS queue, scores each transaction, writes `APPROVED` / `DECLINED` / `REVIEW` decision to DynamoDB `fraud-decisions` table |
+| Idempotency | DynamoDB `txn_id` (hash key) — a duplicate `PutItem` on the same transaction ID is a no-op |
+| Config | Reads SQS URL and DynamoDB table name from SSM Parameter Store at startup (`/cloudops/dev/worker/sqs-queue-url`, `/cloudops/dev/worker/dynamodb-table-name`) |
+| Process model | systemd unit `fraud-worker.service`, `User=nobody`, `NoNewPrivileges=yes`, `PrivateTmp=yes` |
+| Log destination | journald → CloudWatch Agent → `/aws/ec2/fraud-worker/app` |
+| External dependencies | SQS (via Interface Endpoint), DynamoDB (via Gateway Endpoint), SSM Parameter Store (via Interface Endpoint) |
 
-The binary is baked into the Golden AMI by the Image Builder pipeline. There is no runtime code deploy in MVP — a new app version means a new AMI, a new Launch Template version, and an ASG instance refresh. This is deliberate: it demonstrates immutable infrastructure, and it removes the "how do I deploy code to a private instance" question from MVP scope.
+The script is baked into the Golden AMI by the Image Builder pipeline. There is no runtime code deploy in MVP — a new worker version means a new AMI, a new Launch Template version, and an ASG instance refresh. This demonstrates immutable infrastructure and removes the "how do I deploy code to a private instance" question from MVP scope.
 
-Operators reach the local listener for testing via SSM Session Manager port forwarding:
+Operators verify and test the worker via SSM session:
 
+```bash
+# Connect to any instance in the ASG
+aws ssm start-session --target i-xxxxxxxxxxxxxxxxx
+
+# Stream live worker output
+sudo journalctl -u fraud-worker.service -f
+
+# Send a test transaction into the queue (from operator's terminal, not the instance)
+aws sqs send-message \
+  --queue-url $(aws ssm get-parameter \
+    --name /cloudops/dev/worker/sqs-queue-url --query Parameter.Value --output text) \
+  --message-body '{"txn_id":"test-001","card_id":"card-test","amount":99.00,"merchant":"test-store"}'
+
+# Verify the decision was persisted
+aws dynamodb get-item \
+  --table-name cloudops-dev-ddb-fraud-decisions \
+  --key '{"txn_id":{"S":"test-001"}}'
 ```
-aws ssm start-session \
-  --target i-xxxxxxxxxxxxxxxxx \
-  --document-name AWS-StartPortForwardingSession \
-  --parameters '{"portNumber":["8080"],"localPortNumber":["8080"]}'
-```
 
-Then `curl http://localhost:8080/health` from the operator's laptop. No public endpoint, no Application Load Balancer, no inbound rules.
+No public endpoint, no Application Load Balancer, no inbound rules.
 
 ---
 
@@ -133,7 +146,7 @@ Cost is ~$0.75/month at MVP volume. Rationale and the alternatives considered (S
 
 `t4g.micro` (Graviton, `arm64`). 2 vCPU, 1 GiB RAM, ~$6/month on-demand in `us-east-1`.
 
-Graviton is the AWS-recommended default for new Linux workloads. AL2023 has full `arm64` parity, both SSM Agent and CloudWatch Agent ship native `arm64` builds, and the `heartbeat-api` Go binary cross-compiles trivially. See [ADR 0003](decision-records/0003-amazon-linux-2023-on-graviton.md).
+Graviton is the AWS-recommended default for new Linux workloads. AL2023 has full `arm64` parity, both SSM Agent and CloudWatch Agent ship native `arm64` builds, and the fraud-worker Python runtime and its dependencies compile cleanly for `arm64`. See [ADR 0003](decision-records/0003-amazon-linux-2023-on-graviton.md).
 
 ### 4.2 Launch Template
 
@@ -148,8 +161,8 @@ A single Launch Template, `cloudops-dev-lt-workload`, defines:
 | Security groups | `cloudops-dev-sg-workload` |
 | Metadata options | IMDSv2 required, hop limit 1 |
 | EBS | 30 GB gp3, encrypted with platform CMK, deleted on termination |
-| User data | Minimal: register CloudWatch Agent config, start `heartbeat-api.service` |
-| Tags | `Project`, `Environment`, `Owner`, `CostCenter`, `ManagedBy`, `Backup=daily`, `Patch=auto`, `Workload=heartbeat-api` |
+| User data | Minimal: register CloudWatch Agent config, start `fraud-worker.service` |
+| Tags | `Project`, `Environment`, `Owner`, `CostCenter`, `ManagedBy`, `Backup=daily`, `Patch=auto`, `Workload=fraud-worker` |
 
 New AMI versions land in the SSM Parameter; deploying them means creating a new Launch Template version and triggering an ASG instance refresh. There is no in-place update path in MVP. This is the immutable-infrastructure pattern, and it's the right answer for a portfolio.
 
@@ -166,7 +179,7 @@ Health check type is `EC2` in MVP (the workload has no public load balancer to p
 
 ### 4.4 Storage
 
-Single 30 GB gp3 EBS volume per instance, encrypted with the platform CMK. gp3 over gp2: cheaper baseline, higher floor IOPS, and IOPS/throughput are independently configurable. 30 GB is sized for OS + agents + the `heartbeat-api` binary + ~7 days of local logs before CloudWatch Logs rotation handles them.
+Single 30 GB gp3 EBS volume per instance, encrypted with the platform CMK. gp3 over gp2: cheaper baseline, higher floor IOPS, and IOPS/throughput are independently configurable. 30 GB is sized for OS + agents + the fraud-worker script and its Python dependencies + 30 days of local logs before CloudWatch Logs rotation handles them.
 
 ---
 
@@ -190,8 +203,10 @@ Inline policy (least privilege):
 
 - `cloudwatch:PutMetricData` on `*`, conditioned on `cloudwatch:namespace` equals `CloudOpsPlatform/EC2`.
 - `logs:CreateLogStream`, `logs:PutLogEvents` on the specific platform log group ARNs only.
-- `ssm:GetParameter`, `ssm:GetParameters` on `arn:aws:ssm:us-east-1:<acct>:parameter/app/heartbeat-api/*` and `/cloudwatch-agent/config/*`.
-- `kms:Decrypt`, `kms:GenerateDataKey` on the platform CMK ARN, conditioned on `kms:ViaService` matching `ec2.us-east-1.amazonaws.com`, `logs.us-east-1.amazonaws.com`, or `ssm.us-east-1.amazonaws.com`.
+- `ssm:GetParameter`, `ssm:GetParameters`, `ssm:GetParametersByPath` on `/cloudops/dev/worker/*`, `/cloudops/dev/app/fraud-worker/*`, and `/cloudops/dev/cloudwatch-agent/*`.
+- `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:GetQueueAttributes` on the `fraud-transactions` queue ARN only.
+- `dynamodb:PutItem`, `dynamodb:GetItem`, `dynamodb:Query` on the `fraud-decisions` table ARN and its `card-velocity-index` GSI only.
+- `kms:Decrypt`, `kms:GenerateDataKey` on the platform CMK ARN, conditioned on `kms:ViaService` matching `ec2`, `logs`, `ssm`, `sqs`, or `dynamodb` in `us-east-1`.
 
 No `s3:*`. No `ec2:*`. No `iam:*`. No wildcard resources except where the action requires it (`PutMetricData`).
 
@@ -227,7 +242,7 @@ Config pulled from SSM Parameter `/cloudwatch-agent/config/standard` at boot. Co
 | Document | Purpose |
 |---|---|
 | `cloudops-collect-diagnostics` | Tar `/var/log/`, push to the diagnostics S3 bucket |
-| `cloudops-restart-heartbeat` | `systemctl restart heartbeat-api` |
+| `cloudops-restart-fraud-worker` | `systemctl restart fraud-worker` |
 | `cloudops-refresh-cwagent` | Re-fetch CloudWatch Agent config from Parameter Store |
 | `cloudops-emergency-patch` | Apply a single named CVE patch outside the Maintenance Window |
 
@@ -258,9 +273,9 @@ Native EC2 + CloudWatch Agent custom namespace `CloudOpsPlatform/EC2`: `mem_used
 
 | Log Group | Retention | Encryption |
 |---|---|---|
-| `/aws/ec2/heartbeat-api/system` | 7 days | Platform CMK |
-| `/aws/ec2/heartbeat-api/app` | 7 days | Platform CMK |
-| `/aws/ec2/heartbeat-api/audit` | 30 days | Platform CMK |
+| `/aws/ec2/fraud-worker/system` | 30 days | Platform CMK |
+| `/aws/ec2/fraud-worker/app` | 30 days | Platform CMK |
+| `/aws/ec2/fraud-worker/audit` | 30 days | Platform CMK |
 | `/aws/ssm/sessions` | 30 days | Platform CMK |
 | `/aws/vpc/flowlogs` | 14 days | Platform CMK |
 
@@ -272,7 +287,7 @@ Native EC2 + CloudWatch Agent custom namespace `CloudOpsPlatform/EC2`: `mem_used
 | `status-check-failed` | >= 1 for 2 datapoints | SNS |
 | `disk-root-high` | > 85% | SNS |
 | `mem-high` | > 90% for 10 min | SNS |
-| `instance-heartbeat-missing` | missing for 15 min | SNS |
+| `cwagent-missing` | no metrics for 15 min | SNS |
 | `backup-job-failed` | any failure | SNS |
 
 ### 7.4 Alerting
@@ -298,7 +313,7 @@ Full strategy in [`backup-strategy.md`](backup-strategy.md).
 
 ## 9. Golden AMI strategy
 
-EC2 Image Builder pipeline `cloudops-dev-ibpipe-golden-al2023-arm64`. Monthly schedule + on-demand. Base: AL2023 arm64. Components: `update-linux`, CIS baseline, CloudWatch Agent install, heartbeat-api install, cleanup. Validation tests run before publish. AMI ID written to SSM Parameter `/cloudops/dev/golden-ami/al2023-arm64/latest`.
+EC2 Image Builder pipeline `cloudops-dev-ibpipe-golden-al2023-arm64`. Monthly schedule + on-demand. Base: AL2023 arm64. Components: `update-linux`, CIS baseline, CloudWatch Agent install, fraud-worker install (script + systemd unit), cleanup. Validation tests confirm the service unit is enabled and the script is executable before publish. AMI ID written to SSM Parameter `/cloudops/dev/golden-ami/al2023-arm64/latest`.
 
 ---
 

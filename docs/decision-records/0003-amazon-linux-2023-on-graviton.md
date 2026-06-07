@@ -46,7 +46,7 @@ Use **Amazon Linux 2023 on Graviton (`arm64`)**, instance type `t4g.micro`. AMI 
 
 - Image Builder pipeline produces `arm64` AMIs.
 - All AWS agents installed from `arm64` channels.
-- `heartbeat-api` binary built with `GOOS=linux GOARCH=arm64 go build`.
+- fraud-worker Python dependencies verified for `arm64` compatibility during Image Builder build phase.
 - Any future runtime dependency must be checked for `arm64` support before adoption.
 
 ## Revisit when
