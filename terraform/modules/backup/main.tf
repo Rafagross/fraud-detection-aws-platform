@@ -18,34 +18,6 @@ resource "aws_backup_vault" "platform" {
   tags = { Name = "${local.name_prefix}-vault-platform" }
 }
 
-resource "aws_backup_vault_policy" "platform" {
-  backup_vault_name = aws_backup_vault.platform.name
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "DenyDestructiveActionsExceptBreakGlass"
-        Effect = "Deny"
-        Principal = { AWS = "*" }
-        Action = [
-          "backup:DeleteBackupVault",
-          "backup:DeleteRecoveryPoint",
-          "backup:UpdateRecoveryPointLifecycle",
-          "backup:PutBackupVaultAccessPolicy",
-          "backup:DeleteBackupVaultAccessPolicy",
-        ]
-        Resource = "*"
-        Condition = {
-          StringNotEquals = {
-            "aws:PrincipalArn" = "arn:aws:iam::${local.account_id}:role/${local.name_prefix}-role-break-glass"
-          }
-        }
-      }
-    ]
-  })
-}
-
 resource "aws_backup_plan" "daily" {
   name = "${local.name_prefix}-bp-daily"
 

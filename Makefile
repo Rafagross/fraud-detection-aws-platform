@@ -15,7 +15,7 @@ PROFILE ?= cloudops-portfolio
 
 .DEFAULT_GOAL := help
 
-.PHONY: help init fmt validate plan apply destroy
+.PHONY: help init fmt validate plan apply pre-destroy destroy
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -41,7 +41,10 @@ plan: ## Generate and save an execution plan
 apply: ## Apply the saved plan from 'make plan'
 	AWS_PROFILE=$(PROFILE) $(TF) apply $(ENV_DIR)/tfplan
 
-destroy: ## Destroy all platform resources (prompts for confirmation)
-	@printf "WARNING: this will destroy all cloudops-dev resources.\nType 'yes' to continue: " && \
+pre-destroy: ## Delete Backup recovery points + deregister Golden AMIs before terraform destroy
+	AWS_PROFILE=$(PROFILE) AWS_REGION=us-east-1 ./scripts/pre-destroy.sh
+
+destroy: ## Destroy all platform resources (run make pre-destroy first)
+	@printf "WARNING: this will destroy all cloudops-dev resources.\nRun 'make pre-destroy' first if you have not already.\nType 'yes' to continue: " && \
 	  read confirm && [ "$$confirm" = "yes" ] || (echo "Aborted." && exit 1)
 	AWS_PROFILE=$(PROFILE) $(TF) destroy
