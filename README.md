@@ -200,6 +200,9 @@ The non-obvious choices are documented as ADRs in [`docs/decision-records/`](doc
 5. [Auto Scaling Group `min=max=2` for self-healing and zero-downtime updates](docs/decision-records/0005-asg-min-max-1-for-self-healing.md)
 6. [Parameter Store over Secrets Manager](docs/decision-records/0006-parameter-store-over-secrets-manager.md)
 7. [VPC Flow Logs to CloudWatch Logs](docs/decision-records/0007-vpc-flow-logs.md)
+8. [SQS + DynamoDB for fraud worker persistence](docs/decision-records/0008-sqs-dynamodb-for-fraud-worker.md)
+9. [ASG min=2 for zero-downtime rolling updates](docs/decision-records/0009-asg-min2-zero-downtime.md)
+10. [Static ASG capacity vs target-tracking auto-scaling](docs/decision-records/0010-static-asg-vs-target-tracking.md)
 
 ---
 
