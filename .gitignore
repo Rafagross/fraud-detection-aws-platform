@@ -95,6 +95,9 @@ venv/
 # Logs
 *.log
 
+# Private local documentation (not for repo)
+docs/craft-documentation-prompt.md
+
 # Temporary files
 *.tmp
 *.bak
