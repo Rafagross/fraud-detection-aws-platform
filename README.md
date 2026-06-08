@@ -102,6 +102,22 @@ A higher-fidelity network and IAM diagram lives in [`docs/diagrams/`](docs/diagr
 
 ---
 
+## How to navigate this repo
+
+If you are reviewing this as a hiring signal or technical reference, start here:
+
+| Step | What to read | Time |
+|---|---|---|
+| 1 | This README — problem statement, capabilities, cost | 5 min |
+| 2 | [`docs/architecture.md`](docs/architecture.md) — full system design, network, IAM, observability | 15 min |
+| 3 | [`docs/decision-records/`](docs/decision-records/) — ADRs 0001–0010, the non-obvious choices | 10 min |
+| 4 | [`terraform/modules/`](terraform/modules/) — 9 modules, each with a single responsibility | 10 min |
+| 5 | [`runbooks/`](runbooks/) — 5 operational procedures written for on-call use | 10 min |
+
+The ADRs are the highest-density read for architecture signal. The runbooks show operational maturity. The modules show IaC discipline.
+
+---
+
 ## Cost summary
 
 | Item | Estimate (monthly, us-east-1) |
@@ -192,38 +208,68 @@ The non-obvious choices are documented as ADRs in [`docs/decision-records/`](doc
 **MVP (this repo, current scope):**
 VPC + endpoints, KMS, IAM, ASG-managed EC2 (min=max=2) with Golden AMI, fraud transaction worker (SQS → EC2 → DynamoDB), CloudWatch Agent + alarms, AWS Backup, EventBridge → SNS → email, SSM session logging, immutable patching via Image Builder, runbooks, ADRs.
 
-**Phase 2 enhancements (planned, not in this repo):**
-- OIDC-based GitHub Actions deploy pipeline (plan on PR, apply on merge to `main`).
-- Multi-region AMI distribution.
-- AWS Config + a conformance pack scoped to the platform.
-- GuardDuty + Security Hub.
-- Cross-account / cross-region backup vault copy with Vault Lock.
-- Inspector vulnerability scanning in the Image Builder pipeline.
-- Slack/PagerDuty integration for SNS.
+**Phase 6 — next deploy (in progress):**
+- OIDC-based GitHub Actions pipeline (terraform plan on PR, apply on merge).
+- GuardDuty module — threat detection as code.
+- Dual KMS keys: one for data plane (DynamoDB/SQS), one for ops infrastructure (EBS/Backup/Logs).
+- SNS → Slack/PagerDuty alert routing alongside email.
+- ARM64 Python dependency validation gate in Image Builder pipeline.
+- Fix resource-based policies: remove `Deny + Principal:*` from Backup vault and KMS key — incompatible with clean terraform destroy in non-production accounts.
+- AWS Budgets as Terraform resource (currently provisioned manually).
+
+**Phase 2+ (enterprise scale, out of scope for this repo):**
+- Transit Gateway + Shared Services VPC to consolidate Interface Endpoints across multiple workload VPCs.
+- AWS Config conformance pack.
+- Cross-account / cross-region Backup Vault Lock.
+- Inspector vulnerability scanning in Image Builder.
+- Chaos Engineering via AWS Fault Injection Service to validate ASG recovery under load.
+- OpenSearch / SIEM integration for CloudWatch Logs at enterprise scale.
 
 **Explicit non-goals:**
-A managed database (no application use case), Kubernetes (out of scope for an EC2-pattern reference), multi-account org structure (assumed to exist; this is a workload-account pattern), human IAM/SSO design (assumed to exist).
+A managed database (no application use case), Kubernetes (out of scope for an EC2-pattern reference), dynamic target-tracking ASG scaling (documented in [ADR 0010](docs/decision-records/0010-static-asg-vs-target-tracking.md)).
 
 ---
 
+## Account setup
+
+This repo deploys into a **workload account** (`Portfolio`) inside an AWS Organizations structure. The organization layout assumed:
+
+```
+Management account (460997080963)
+└── Workloads OU
+    └── Portfolio account (776648109094)  ← deploy target
+```
+
+Account-level controls configured outside Terraform (one-time setup):
+- IAM Identity Center with `AdminFullAccess` and `ReadOnlyAccess` permission sets
+- Organization CloudTrail (multi-region, centralized in Management account S3 bucket)
+- SCP `deny-non-us-regions` on Workloads OU — permits `us-east-1`, `us-east-2`, `us-west-1`, `us-west-2` only
+- AWS Budgets alert at 80% of $100/month ceiling
+
 ## Prerequisites assumed
 
-- AWS account with CloudTrail enabled at the account or organization level (this repo does not provision a trail).
+- AWS Organizations structure as above, with IAM Identity Center configured.
+- Active SSO session for the Portfolio account (`aws sso login --profile <profile>`).
 - Terraform `>= 1.6`, AWS provider `>= 5.x`.
-- AWS CLI v2 configured with credentials for an IAM role that can assume the deploy role.
-- For SSM Session Manager: the AWS CLI Session Manager plugin installed locally.
+- AWS CLI v2 with the Session Manager plugin installed locally.
 
 ## Deploy flow
 
 ```bash
+# 0. Authenticate — SSO session must be active
+aws sso login --profile cloudops-portfolio
+
 # 1. Bootstrap — one-time: creates S3 backend + DynamoDB lock table
 cd terraform/bootstrap && terraform init && terraform apply
+cd -
 
 # 2. Configure
 cp terraform/envs/dev/terraform.tfvars.example terraform/envs/dev/terraform.tfvars
-# Edit terraform.tfvars: set alert_email and ami_id
+# Edit terraform.tfvars:
+#   alert_email  = "your@email.com"
+#   ami_id       = "ami-..."   # current AL2023 arm64 AMI (see tfvars.example for lookup command)
 
-# 3. Static validation (no AWS credentials required)
+# 3. Static validation — no AWS credentials required
 make validate
 
 # 4. Plan and apply
@@ -233,8 +279,13 @@ make apply
 # 5. Verify the platform is healthy
 ./scripts/validation/post-deploy-checks.sh <instance-id> us-east-1
 
-# Teardown
+# Teardown — full clean destroy
+# IMPORTANT: delete the Backup vault access policy BEFORE running destroy.
+# The vault policy restricts DeleteRecoveryPoint to the break-glass role only.
+# If the role is destroyed before the vault is empty, manual recovery via AWS Support is required.
+# See docs/decision-records/0010 and the Phase 6 fix for this pattern.
 make destroy
+cd terraform/bootstrap && terraform destroy
 ```
 
 ---
