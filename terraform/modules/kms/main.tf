@@ -190,23 +190,4 @@ data "aws_iam_policy_document" "kms_key_policy" {
     ]
     resources = ["*"]
   }
-
-  statement {
-    sid    = "DenyKeyDeletionExceptBreakGlass"
-    effect = "Deny"
-    principals {
-      type        = "AWS"
-      identifiers = ["*"]
-    }
-    actions = [
-      "kms:ScheduleKeyDeletion",
-      "kms:DeleteImportedKeyMaterial",
-    ]
-    resources = ["*"]
-    condition {
-      test     = "StringNotEquals"
-      variable = "aws:PrincipalArn"
-      values   = ["arn:aws:iam::${local.account_id}:role/${var.project}-${var.environment}-role-break-glass"]
-    }
-  }
 }
