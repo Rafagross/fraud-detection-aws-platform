@@ -4,8 +4,6 @@
 #          Single operational vault — see docs/backup-strategy.md
 ##############################################################################
 
-data "aws_caller_identity" "current" {}
-
 locals {
   name_prefix = "${var.project}-${var.environment}"
 }

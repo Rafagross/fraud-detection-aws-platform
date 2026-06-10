@@ -11,8 +11,6 @@
 #                 Query on GSI card-velocity-index (velocity checks by card_id)
 ##############################################################################
 
-data "aws_caller_identity" "current" {}
-
 locals {
   name_prefix = "${var.project}-${var.environment}"
 }

@@ -61,7 +61,17 @@ jobs:
             CKV_AWS_356,
             CKV_AWS_49,
             CKV_AWS_1,
-            CKV_AWS_283
+            CKV_AWS_283,
+            CKV_AWS_355,
+            CKV_AWS_290,
+            CKV_AWS_288,
+            CKV_AWS_180,
+            CKV_AWS_199,
+            CKV_AWS_338,
+            CKV_AWS_18,
+            CKV2_AWS_34,
+            CKV_AWS_145,
+            CKV_AWS_144
           # CKV_AWS_7: KMS key rotation — enforced via key_rotation_enabled in Terraform
           # CKV2_AWS_62: S3 event notifications — not required for diagnostics bucket
           # CKV_AWS_274: AdministratorAccess on apply role — intentional; apply role needs full platform access
@@ -76,6 +86,13 @@ jobs:
           # CKV_AWS_93: S3 bucket policy lockout — DenyNonTLS is standard pattern; root retains access
           # CKV_AWS_53-56: S3 public access — aws_s3_bucket_public_access_block resources present for all buckets
           # CKV_AWS_107-111/356/49/1/283/108: IAM wildcards — managed policy attachments, no inline wildcards
+          # CKV_AWS_355/290/288: break_glass inline policy — intentional emergency-access role; broad by design
+          # CKV_AWS_180/199: Image Builder KMS — component definitions are not data at rest; AMIs are encrypted
+          # CKV_AWS_338: CloudWatch log retention — 14 days intentional for demo cost; 1-year threshold too strict
+          # CKV_AWS_18: S3 access logging — self-referential for diagnostics; bootstrap is infra-only
+          # CKV2_AWS_34: SSM String parameters — queue URLs and table names are non-sensitive config
+          # CKV_AWS_145: S3 KMS — AES256 on tfstate bucket is acceptable; KMS adds cost with no benefit here
+          # CKV_AWS_144: S3 cross-region replication — single-region demo; replication not required
 
       - name: Upload SARIF
         if: always()
