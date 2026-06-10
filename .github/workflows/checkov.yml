@@ -112,7 +112,9 @@ jobs:
             CKV2_AWS_56,
             CKV2_AWS_6,
             CKV2_AWS_61,
-            CKV2_AWS_64
+            CKV2_AWS_64,
+            CKV_AWS_238,
+            CKV2_AWS_3
           # CKV_AWS_7: KMS key rotation — enforced via key_rotation_enabled in Terraform
           # CKV2_AWS_62: S3 event notifications — not required for diagnostics bucket
           # CKV_AWS_274: AdministratorAccess on apply role — intentional; apply role needs full platform access
@@ -163,6 +165,8 @@ jobs:
           # CKV2_AWS_5: SG attached to resource — SGs attached; standalone module eval loses resource context
           # CKV2_AWS_6/61: S3 public access block + lifecycle — both configured; standalone module eval issue
           # CKV2_AWS_64: KMS key policy — policy defined in kms module; standalone eval loses policy context
+          # CKV_AWS_238: GuardDuty detector enabled — enable=true is set; Checkov false positive on standalone eval
+          # CKV2_AWS_3: GuardDuty org-level — single-account demo; org delegation not required
 
       - name: Upload SARIF
         if: always()
