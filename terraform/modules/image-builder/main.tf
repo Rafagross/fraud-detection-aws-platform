@@ -279,6 +279,69 @@ resource "aws_imagebuilder_component" "fraud_worker_install" {
   lifecycle { create_before_destroy = true }
 }
 
+resource "aws_imagebuilder_component" "arm64_python_validation" {
+  name     = "${local.name_prefix}-ibcomp-arm64-python-validation"
+  platform = "Linux"
+  version  = "1.0.0"
+  data = yamlencode({
+    name          = "ARM64 Python Validation"
+    schemaVersion = "1.0"
+    phases = [{
+      name = "validate"
+      steps = [
+        {
+          name   = "CheckArchitecture"
+          action = "ExecuteBash"
+          inputs = {
+            commands = [
+              "python3 -c \"import platform; arch=platform.machine(); assert arch=='aarch64', 'Expected aarch64, got '+arch\" || exit 1"
+            ]
+          }
+        },
+        {
+          name   = "CheckStdlibModules"
+          action = "ExecuteBash"
+          inputs = {
+            commands = [
+              "python3 -c \"import json, sys, uuid, time; print('stdlib OK')\" || exit 1"
+            ]
+          }
+        },
+        {
+          name   = "CheckUUID"
+          action = "ExecuteBash"
+          inputs = {
+            commands = [
+              "python3 -c \"import uuid; u=str(uuid.uuid4()); assert len(u)==36, 'UUID format invalid'\" || exit 1"
+            ]
+          }
+        },
+        {
+          name   = "CheckJSONRoundtrip"
+          action = "ExecuteBash"
+          inputs = {
+            commands = [
+              "python3 -c \"import json; assert json.loads(json.dumps({'score': 42}))['score']==42\" || exit 1"
+            ]
+          }
+        },
+        {
+          name   = "CheckWorkerSQSPattern"
+          action = "ExecuteBash"
+          inputs = {
+            commands = [
+              "echo '{\"Messages\":[{\"ReceiptHandle\":\"abc\",\"Body\":\"{}\"}]}' | python3 -c \"import sys,json; msgs=json.load(sys.stdin).get('Messages',[]); assert msgs[0]['ReceiptHandle']=='abc'\" || exit 1"
+            ]
+          }
+        },
+      ]
+    }]
+  })
+  tags = { Name = "${local.name_prefix}-ibcomp-arm64-python-validation" }
+
+  lifecycle { create_before_destroy = true }
+}
+
 resource "aws_imagebuilder_component" "cleanup" {
   name     = "${local.name_prefix}-ibcomp-cleanup"
   platform = "Linux"
@@ -304,7 +367,7 @@ resource "aws_imagebuilder_component" "cleanup" {
 resource "aws_imagebuilder_image_recipe" "golden_al2023_arm64" {
   name         = "${local.name_prefix}-ibrecipe-golden-al2023-arm64"
   parent_image = data.aws_ssm_parameter.al2023_arm64.value
-  version      = "1.1.0"
+  version      = "1.2.0"
 
   block_device_mapping {
     device_name = "/dev/xvda"
@@ -323,6 +386,7 @@ resource "aws_imagebuilder_image_recipe" "golden_al2023_arm64" {
   component { component_arn = aws_imagebuilder_component.cis_baseline.arn }
   component { component_arn = aws_imagebuilder_component.cwagent_install.arn }
   component { component_arn = aws_imagebuilder_component.fraud_worker_install.arn }
+  component { component_arn = aws_imagebuilder_component.arm64_python_validation.arn }
   component { component_arn = aws_imagebuilder_component.cleanup.arn }
 
   tags = { Name = "${local.name_prefix}-ibrecipe-golden-al2023-arm64" }
