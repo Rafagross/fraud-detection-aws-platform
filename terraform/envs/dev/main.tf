@@ -140,7 +140,15 @@ module "image_builder" {
   image_builder_logs_bucket = var.image_builder_logs_bucket != "" ? var.image_builder_logs_bucket : module.ec2_workload.diagnostics_bucket_name
 }
 
-# 10. DLQ depth alarm — standalone resource that needs both observability (SNS ARN)
+# 10. GuardDuty
+module "guardduty" {
+  source        = "../../modules/guardduty"
+  project       = var.project
+  environment   = var.environment
+  sns_topic_arn = module.observability.sns_topic_arn
+}
+
+# 11. DLQ depth alarm — standalone resource that needs both observability (SNS ARN)
 # and worker_infra (DLQ name). Lives here to avoid circular module dependencies.
 resource "aws_cloudwatch_metric_alarm" "worker_dlq_depth" {
   alarm_name          = "${var.project}-${var.environment}-alarm-worker-dlq-depth"
