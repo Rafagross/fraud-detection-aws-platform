@@ -73,6 +73,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "diagnostics" {
     filter {}
     expiration { days = 30 }
     noncurrent_version_expiration { noncurrent_days = 7 }
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
   }
 }
 
