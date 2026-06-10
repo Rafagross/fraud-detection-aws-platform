@@ -92,7 +92,9 @@ A higher-fidelity network and IAM diagram lives in [`docs/diagrams/`](docs/diagr
 | Configuration management | SSM Parameter Store (Standard tier, SecureString where needed) |
 | Patching | Immutable — OS patches baked into Golden AMIs via EC2 Image Builder; running instances replaced via ASG refresh, never patched in place |
 | Observability | CloudWatch Agent (system + custom metrics), CloudWatch Logs, alarms on CPU/memory/disk/status, dashboard |
-| Alerting | CloudWatch Alarms + EventBridge → SNS → email; events: EC2 state change, SSM Run Command failure, Backup job failure, KMS key deletion, break-glass role assumption (Slack/PagerDuty deferred) |
+| Alerting | CloudWatch Alarms + EventBridge → SNS → email; events: EC2 state change, SSM Run Command failure, Backup job failure, KMS key deletion, break-glass role assumption |
+| Threat detection | GuardDuty with S3 log analysis and EC2 malware scanning; HIGH/CRITICAL findings (severity ≥ 7) routed via EventBridge → SNS → email |
+| CI/CD | GitHub Actions with OIDC federation — no static credentials; `terraform plan` posted as PR comment, `terraform apply` on merge to main |
 | Backup and recovery | AWS Backup, daily snapshots, 7d warm + 30d cold, KMS-encrypted vault |
 | Fraud transaction processing | SQS queue → EC2 fraud-worker (Python) → DynamoDB; zero-downtime ASG rolling updates |
 | Poison-message handling | SQS Dead Letter Queue — messages failing 3× (DynamoDB write errors) are moved to DLQ automatically; CloudWatch alarm fires when DLQ depth > 0 |
@@ -208,17 +210,15 @@ The non-obvious choices are documented as ADRs in [`docs/decision-records/`](doc
 
 ## Status and roadmap
 
-**MVP (this repo, current scope):**
-VPC + endpoints, KMS, IAM, ASG-managed EC2 (min=max=2) with Golden AMI, fraud transaction worker (SQS → EC2 → DynamoDB), CloudWatch Agent + alarms, AWS Backup, EventBridge → SNS → email, SSM session logging, immutable patching via Image Builder, runbooks, ADRs.
+**MVP + Phase 6 (this repo, current scope):**
+VPC + endpoints, KMS, IAM, ASG-managed EC2 (min=max=2) with Golden AMI, fraud transaction worker (SQS → EC2 → DynamoDB), CloudWatch Agent + alarms, AWS Backup, EventBridge → SNS → email, SSM session logging, immutable patching via Image Builder, AWS Budgets, OIDC-based GitHub Actions CI/CD (plan on PR, apply on merge), GuardDuty threat detection, runbooks, ADRs.
 
-**Phase 6 — next deploy (in progress):**
-- OIDC-based GitHub Actions pipeline (terraform plan on PR, apply on merge).
-- GuardDuty module — threat detection as code.
-- Dual KMS keys: one for data plane (DynamoDB/SQS), one for ops infrastructure (EBS/Backup/Logs).
-- SNS → Slack/PagerDuty alert routing alongside email.
-- ARM64 Python dependency validation gate in Image Builder pipeline.
-- Fix resource-based policies: remove `Deny + Principal:*` from Backup vault and KMS key — incompatible with clean terraform destroy in non-production accounts.
-- AWS Budgets as Terraform resource (currently provisioned manually).
+**Phase 6 — completed:**
+- ✅ OIDC-based GitHub Actions pipeline — `terraform plan` on PR, `terraform apply` on merge to main; two IAM roles (read-only plan, admin apply) scoped to exact OIDC sub claims; no static credentials.
+- ✅ GuardDuty module — detector enabled with S3 + malware protection; EventBridge routes HIGH/CRITICAL findings (severity ≥ 7) to platform SNS topic.
+- ✅ AWS Budgets — monthly $100 ceiling with alerts at 50%, 80%, 100%; managed as Terraform resource.
+- ⏳ SNS → Slack alert routing alongside email.
+- ⏳ ARM64 Python dependency validation gate in Image Builder pipeline.
 
 **Phase 2+ (enterprise scale, out of scope for this repo):**
 - Transit Gateway + Shared Services VPC to consolidate Interface Endpoints across multiple workload VPCs.
