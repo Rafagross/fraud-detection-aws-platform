@@ -141,15 +141,7 @@ module "image_builder" {
   image_builder_logs_bucket = var.image_builder_logs_bucket != "" ? var.image_builder_logs_bucket : module.ec2_workload.diagnostics_bucket_name
 }
 
-# 10. GitHub Actions OIDC — CI/CD federation (no static credentials)
-module "github_actions_oidc" {
-  source      = "../../modules/github-actions-oidc"
-  project     = var.project
-  environment = var.environment
-  github_repo = var.github_repo
-}
-
-# 11. DLQ depth alarm — standalone resource that needs both observability (SNS ARN)
+# 10. DLQ depth alarm — standalone resource that needs both observability (SNS ARN)
 # and worker_infra (DLQ name). Lives here to avoid circular module dependencies.
 resource "aws_cloudwatch_metric_alarm" "worker_dlq_depth" {
   alarm_name          = "${var.project}-${var.environment}-alarm-worker-dlq-depth"
