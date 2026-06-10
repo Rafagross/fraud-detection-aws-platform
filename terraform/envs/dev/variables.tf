@@ -64,3 +64,10 @@ variable "workload_name" {
   type        = string
   default     = "fraud-worker"
 }
+
+variable "slack_webhook_url" {
+  description = "Slack Incoming Webhook URL for platform alert notifications."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
