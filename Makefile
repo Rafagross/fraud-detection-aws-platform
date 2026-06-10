@@ -36,10 +36,10 @@ validate: ## Static validation — no AWS credentials required
 	@echo "✓ terraform validate passed"
 
 plan: ## Generate and save an execution plan
-	AWS_PROFILE=$(PROFILE) $(TF) plan -out=$(ENV_DIR)/tfplan
+	AWS_PROFILE=$(PROFILE) $(TF) plan -out=tfplan
 
 apply: ## Apply the saved plan from 'make plan'
-	AWS_PROFILE=$(PROFILE) $(TF) apply $(ENV_DIR)/tfplan
+	AWS_PROFILE=$(PROFILE) $(TF) apply tfplan
 
 pre-destroy: ## Delete Backup recovery points + deregister Golden AMIs before terraform destroy
 	AWS_PROFILE=$(PROFILE) AWS_REGION=us-east-1 ./scripts/pre-destroy.sh
