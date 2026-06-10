@@ -9,3 +9,15 @@ variable "project" {
   type        = string
   default     = "cloudops"
 }
+
+variable "environment" {
+  description = "Deployment environment for OIDC role naming."
+  type        = string
+  default     = "dev"
+}
+
+variable "github_repo" {
+  description = "GitHub repository in owner/name format for OIDC trust policy."
+  type        = string
+  default     = "Rafagross/fraud-detection-aws-platform"
+}

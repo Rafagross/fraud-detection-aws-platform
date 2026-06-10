@@ -12,11 +12,6 @@ variable "kms_key_arn" {
   type        = string
 }
 
-variable "kms_key_id" {
-  description = "KMS key ID (short form) — used for SSM SecureString parameters."
-  type        = string
-}
-
 variable "asg_name" {
   description = "ASG name used as dimension in CloudWatch alarms."
   type        = string

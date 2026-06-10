@@ -124,7 +124,6 @@ module "observability" {
   workload_name = var.workload_name
 
   kms_key_arn          = module.kms.key_arn
-  kms_key_id           = module.kms.key_id
   asg_name             = module.ec2_workload.asg_name
   alert_email          = var.alert_email
   break_glass_role_arn = module.iam_roles.break_glass_role_arn

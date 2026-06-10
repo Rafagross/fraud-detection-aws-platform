@@ -15,8 +15,9 @@ locals {
 
 # SNS
 resource "aws_sns_topic" "alerts" {
-  name = "${local.name_prefix}-sns-alerts"
-  tags = { Name = "${local.name_prefix}-sns-alerts" }
+  name              = "${local.name_prefix}-sns-alerts"
+  kms_master_key_id = var.kms_key_arn
+  tags              = { Name = "${local.name_prefix}-sns-alerts" }
 }
 
 resource "aws_sns_topic_subscription" "email" {

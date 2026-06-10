@@ -8,6 +8,16 @@ output "tfstate_lock_table_name" {
   value       = aws_dynamodb_table.tfstate_lock.name
 }
 
+output "github_actions_plan_role_arn" {
+  description = "ARN of the read-only IAM role for GitHub Actions plan jobs."
+  value       = aws_iam_role.github_actions_plan.arn
+}
+
+output "github_actions_apply_role_arn" {
+  description = "ARN of the admin IAM role for GitHub Actions apply jobs."
+  value       = aws_iam_role.github_actions_apply.arn
+}
+
 output "backend_config" {
   description = "Ready-to-paste snippet for terraform/envs/dev/backend.tf"
   value = <<-EOT
