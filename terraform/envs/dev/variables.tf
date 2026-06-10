@@ -64,3 +64,9 @@ variable "workload_name" {
   type        = string
   default     = "fraud-worker"
 }
+
+variable "github_repo" {
+  description = "GitHub repository in owner/name format for OIDC trust policy."
+  type        = string
+  default     = "Rafagross/fraud-detection-aws-platform"
+}
