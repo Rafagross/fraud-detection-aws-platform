@@ -26,57 +26,83 @@ The platform runs a fraud transaction scoring worker — a Python service that p
 
 ```mermaid
 flowchart LR
-    operator([Operator])
-    iam[IAM + MFA]
-    ssm[SSM Service]
+    OPS["👤 Operator"]
+    GHA["🛠️ GitHub Actions"]
 
-    subgraph vpc[VPC 10.20.0.0/16 - us-east-1]
-        direction TB
+    subgraph AWS ["☁️ AWS Cloud · us-east-1"]
+        direction LR
 
-        subgraph endpoints[Endpoint subnets - private]
-            vpce_ssm[VPCE: ssm]
-            vpce_ssmm[VPCE: ssmmessages]
-            vpce_ec2m[VPCE: ec2messages]
-            vpce_logs[VPCE: logs]
-            vpce_mon[VPCE: monitoring]
-            s3gw[S3 Gateway Endpoint]
-            dynamo_gw[DynamoDB Gateway Endpoint]
+        subgraph ACCESS ["🔐 Access & CI/CD"]
+            direction TB
+            SSM["Systems Manager\nSession Manager"]
+            IMG["📦 Image Builder\nGolden AMI · AL2023 arm64"]
         end
 
-        subgraph workload[Workload subnets - private, 2 AZs]
-            asg[Auto Scaling Group<br/>min=max=2]
-            ec2[EC2 t4g.micro<br/>Golden AMI<br/>fraud-worker]
+        subgraph VPCNET ["🌐 VPC 10.20.0.0/16 · Private App Subnet"]
+            direction TB
+            EP["🔗 VPC Endpoints\nSSM·SQS·CloudWatch·DynamoDB"]
+            SQS["📨 SQS\nfraud-transactions"]
+            EC2["⚙️ EC2 / ASG\nfraud-worker arm64 · desired=2"]
+            FIS["💥 FIS\nterminate-one-instance"]
+        end
+
+        subgraph DATA ["🗄️ Data"]
+            direction TB
+            DDB["📊 DynamoDB\nfraud-decisions"]
+            BCK["🗃️ AWS Backup\nvault + daily plan"]
+        end
+
+        subgraph SECOBS ["🛡️ Security & Observability"]
+            direction TB
+            KMS["🔑 KMS · CMK"]
+            INS["🔍 Inspector v2"]
+            GRD["🚨 GuardDuty"]
+            CW["📉 CloudWatch\nAlarms & Dashboards"]
+        end
+
+        subgraph ALERT ["🔔 Alerting"]
+            direction TB
+            EVB["⚡ EventBridge\nAlert Rules"]
+            SNS["📣 SNS\ncloudops-alerts"]
+            LAM["λ Lambda\nslack-notify · Py 3.12"]
         end
     end
 
-    cw[CloudWatch<br/>Logs + Metrics + Alarms]
-    sns[SNS Topic]
-    backup[AWS Backup<br/>Vault + Plan]
-    kms[KMS CMK]
-    ib[EC2 Image Builder<br/>Golden AMI Pipeline]
-    sqs[SQS<br/>fraud-transactions]
-    ddb[DynamoDB<br/>fraud-decisions]
+    SLACK["💬 Slack"]
 
-    operator -->|aws ssm start-session| iam
-    iam --> ssm
-    ssm --> vpce_ssm
-    vpce_ssm --> ec2
-    vpce_ssmm --> ec2
-    vpce_ec2m --> ec2
-    ec2 -->|logs + metrics| vpce_logs
-    ec2 --> vpce_mon
-    vpce_logs --> cw
-    vpce_mon --> cw
-    cw -->|alarms| sns
-    asg -.manages.-> ec2
-    ec2 -.encrypted with.-> kms
-    cw -.encrypted with.-> kms
-    backup -.encrypted with.-> kms
-    ec2 -.snapshotted by.-> backup
-    ib -.publishes AMI ID to SSM Parameter.-> asg
-    ec2 -->|poll messages| sqs
-    ec2 -->|write decisions| dynamo_gw
-    dynamo_gw --> ddb
+    %% ---- Numbered flows ----
+    GHA  -->|"7 · OIDC + Terraform apply"| SSM
+    OPS  -->|"1 · SSM Session (no SSH/bastion)"| SSM
+    SSM  --> EP
+    SQS  -->|"2 · poll transactions"| EC2
+    EC2  -->|"3 · write decision via gateway EP"| DDB
+    GRD  -->|"4 · HIGH/CRITICAL findings"| EVB
+    SNS  -->|"5a · publish to subscriber"| LAM
+    LAM  -->|"5b · webhook POST"| SLACK
+    FIS  -->|"6 · chaos terminate"| EC2
+    IMG  -->|"8 · publish Golden AMI"| EC2
+    INS  -->|"continuous CVE scan"| EC2
+    BCK  -->|"daily backup"| DDB
+    EC2  -->|"CPU/mem/health metrics"| CW
+    CW   -->|"alarm breach → alert"| SNS
+    EVB  -->|"alert rule → routes to SNS"| SNS
+    KMS  -.->|encrypts| SQS
+    KMS  -.->|encrypts| DDB
+
+    classDef compute fill:#ED7100,stroke:#232F3E,color:#fff
+    classDef queue fill:#FF4F8B,stroke:#232F3E,color:#fff
+    classDef db fill:#7B16FF,stroke:#232F3E,color:#fff
+    classDef sec fill:#DD344C,stroke:#232F3E,color:#fff
+    classDef obs fill:#1A9C3E,stroke:#232F3E,color:#fff
+    classDef notify fill:#E7157B,stroke:#232F3E,color:#fff
+    classDef ext fill:#232F3E,stroke:#FF9900,color:#fff
+    class EC2,FIS compute
+    class SQS queue
+    class DDB,BCK db
+    class KMS,GRD,INS,IMG sec
+    class CW obs
+    class EVB,SNS,LAM notify
+    class OPS,GHA,SLACK ext
 ```
 
 A higher-fidelity network and IAM diagram lives in [`docs/diagrams/`](docs/diagrams/). Full architecture detail is in [`docs/architecture.md`](docs/architecture.md).
