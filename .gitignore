@@ -108,3 +108,4 @@ sessionmanager-bundle.zip
 sessionmanager-bundle.zip
 sessionmanager-bundle/
 terraform/bootstrap/tfplan
+terraform/modules/slack-notifications/templates/handler.zip
