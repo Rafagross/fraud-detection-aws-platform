@@ -94,8 +94,10 @@ A higher-fidelity network and IAM diagram lives in [`docs/diagrams/`](docs/diagr
 | Observability | CloudWatch Agent (system + custom metrics), CloudWatch Logs, alarms on CPU/memory/disk/status, dashboard |
 | Alerting | CloudWatch Alarms + EventBridge → SNS → email + Slack; events: EC2 state change, SSM Run Command failure, Backup job failure, KMS key deletion, break-glass role assumption |
 | Threat detection | GuardDuty with S3 log analysis and EC2 malware scanning; HIGH/CRITICAL findings (severity ≥ 7) routed via EventBridge → SNS → Slack + email |
+| Vulnerability scanning | Amazon Inspector v2 continuously scans running EC2 instances for OS-level CVEs; findings visible in Inspector console and Security Hub |
 | CI/CD | GitHub Actions with OIDC federation — no static credentials; `terraform plan` posted as PR comment, `terraform apply` on merge to main |
 | AMI quality gate | ARM64 Python validation in Image Builder — verifies aarch64 runtime and all fraud-worker stdlib patterns before AMI is published; broken AMIs never reach the fleet |
+| Chaos engineering | AWS Fault Injection Service experiment terminates one ASG instance to validate self-healing — ASG replaces the instance in under 2 minutes; experiment logs to KMS-encrypted CloudWatch Log Group |
 | Backup and recovery | AWS Backup, daily snapshots, 7d warm + 30d cold, KMS-encrypted vault |
 | Fraud transaction processing | SQS queue → EC2 fraud-worker (Python) → DynamoDB; zero-downtime ASG rolling updates |
 | Poison-message handling | SQS Dead Letter Queue — messages failing 3× (DynamoDB write errors) are moved to DLQ automatically; CloudWatch alarm fires when DLQ depth > 0 |
@@ -114,7 +116,7 @@ If you are reviewing this as a hiring signal or technical reference, start here:
 | 1 | This README — problem statement, capabilities, cost | 5 min |
 | 2 | [`docs/architecture.md`](docs/architecture.md) — full system design, network, IAM, observability | 15 min |
 | 3 | [`docs/decision-records/`](docs/decision-records/) — ADRs 0001–0010, the non-obvious choices | 10 min |
-| 4 | [`terraform/modules/`](terraform/modules/) — 11 modules, each with a single responsibility | 10 min |
+| 4 | [`terraform/modules/`](terraform/modules/) — 13 modules, each with a single responsibility | 10 min |
 | 5 | [`runbooks/`](runbooks/) — 5 operational procedures written for on-call use | 10 min |
 
 The ADRs are the highest-density read for architecture signal. The runbooks show operational maturity. The modules show IaC discipline.
@@ -147,7 +149,7 @@ The single largest line item is VPC Interface Endpoints. Forgetting to destroy t
 
 ## Repository layout
 
-```
+```text
 .
 ├── README.md                       # This file
 ├── LICENSE
@@ -212,16 +214,20 @@ The non-obvious choices are documented as ADRs in [`docs/decision-records/`](doc
 ## Status and roadmap
 
 **MVP + Phase 6 (this repo, current scope):**
-VPC + endpoints, KMS, IAM, ASG-managed EC2 (min=max=2) with Golden AMI, fraud transaction worker (SQS → EC2 → DynamoDB), CloudWatch Agent + alarms, AWS Backup, EventBridge → SNS → email + Slack, SSM session logging, immutable patching via Image Builder (ARM64 Python validation gate), AWS Budgets, OIDC-based GitHub Actions CI/CD, GuardDuty threat detection, runbooks, ADRs.
+VPC + endpoints, KMS, IAM, ASG-managed EC2 (min=max=2) with Golden AMI, fraud transaction worker (SQS → EC2 → DynamoDB), CloudWatch Agent + alarms, AWS Backup, EventBridge → SNS → email + Slack, SSM session logging, immutable patching via Image Builder (ARM64 Python validation gate), AWS Budgets, OIDC-based GitHub Actions CI/CD, GuardDuty threat detection, Inspector v2 vulnerability scanning, FIS chaos engineering, runbooks, ADRs.
 
 **Phase 6 — fully complete:**
+
 - ✅ OIDC-based GitHub Actions pipeline — `terraform plan` on PR, `terraform apply` on merge to main; two IAM roles (read-only plan, admin apply) scoped to exact OIDC sub claims; no static credentials.
 - ✅ GuardDuty module — detector enabled with S3 + malware protection; EventBridge routes HIGH/CRITICAL findings (severity ≥ 7) to platform SNS topic.
 - ✅ AWS Budgets — monthly $100 ceiling with alerts at 50%, 80%, 100%; managed as Terraform resource.
 - ✅ SNS → Slack — Lambda function subscribed to platform SNS topic; formats CloudWatch alarms and GuardDuty findings; webhook URL stored encrypted via CMK.
 - ✅ ARM64 Python validation gate — Image Builder component verifies python3 runs on aarch64 and all fraud-worker stdlib patterns execute correctly before AMI is published.
+- ✅ Inspector v2 — continuous EC2 vulnerability scanning for OS-level CVEs; enabled at account level via Terraform.
+- ✅ FIS chaos engineering — experiment template terminates one ASG instance; validates self-healing under `min=max=2`; experiment logs to KMS-encrypted CloudWatch Log Group.
 
 **Phase 2+ (enterprise scale, out of scope for this repo):**
+
 - Transit Gateway + Shared Services VPC to consolidate Interface Endpoints across multiple workload VPCs.
 - AWS Config conformance pack.
 - Cross-account / cross-region Backup Vault Lock.
@@ -238,13 +244,14 @@ A managed database (no application use case), Kubernetes (out of scope for an EC
 
 This repo deploys into a **workload account** (`Portfolio`) inside an AWS Organizations structure. The organization layout assumed:
 
-```
+```text
 Management account (460997080963)
 └── Workloads OU
     └── Portfolio account (776648109094)  ← deploy target
 ```
 
 Account-level controls configured outside Terraform (one-time setup):
+
 - IAM Identity Center with `AdminFullAccess` and `ReadOnlyAccess` permission sets
 - Organization CloudTrail (multi-region, centralized in Management account S3 bucket)
 - SCP `deny-non-us-regions` on Workloads OU — permits `us-east-1`, `us-east-2`, `us-west-1`, `us-west-2` only

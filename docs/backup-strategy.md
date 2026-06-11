@@ -77,6 +77,7 @@ Denies destructive operations to all principals except break-glass role: `backup
 ### 4.2 KMS key deletion risk
 
 If the platform CMK is deleted, every recovery point in the vault becomes permanently unrecoverable. Mitigations:
+
 - Deploy role IAM policy does **not** grant `kms:ScheduleKeyDeletion` on the platform CMK.
 - EventBridge rule fires on any `kms:ScheduleKeyDeletion` event for the platform CMK → SNS alert. Provides the 7-day waiting window to cancel.
 - Break-glass role has the action, but usage is logged and triggers separate alerts.

@@ -17,17 +17,21 @@ Enable VPC Flow Logs at the **VPC level** (captures all subnets), destination **
 ## Alternatives considered
 
 ### No Flow Logs
+
 - Rejected: no network-layer audit trail. Troubleshooting SSM endpoint connectivity becomes guesswork. Senior reviewer red flag.
 
 ### Flow Logs to S3 with Athena queries
+
 - Pros: cheaper at high volume (~$0.30/month vs ~$0.75/month).
 - Cons: Athena queries require schema setup, partition management, cost-per-query. For ad-hoc troubleshooting at MVP scale, CloudWatch Logs Insights is faster and lower friction.
 - Rejected for MVP. Revisit if monthly volume exceeds 50 GB.
 
 ### Subnet-level logs only
+
 - Rejected: misses traffic in excluded subnets. VPC-level is the correct default.
 
 ### REJECT-only filter
+
 - Pros: ~10x cheaper at this volume.
 - Cons: loses visibility into accept events needed for troubleshooting. Cost difference is ~$0.50/month — not worth the loss.
 - Rejected for MVP.

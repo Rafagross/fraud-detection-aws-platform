@@ -82,11 +82,13 @@ Use this only when Path A's 15–20 min window is too slow.
 2. **Document:** `AWS-RunShellScript`.
 3. **Targets:** select instance manually, or **Specify instance tags** with `Workload=fraud-worker`.
 4. **Command parameters:**
-   ```
+
+   ```bash
    sudo dnf install -y <package-name>
    sudo dnf update -y <package-name>
    rpm -q <package-name>
    ```
+
 5. **Output options:** S3 bucket = `cloudops-dev-s3-diagnostics-<account-id>`, prefix = `ssm-patch-output/`.
 6. **Run**.
 

@@ -9,6 +9,7 @@ For shorter "why" answers on individual decisions, see the ADRs under [`decision
 ## 1. Goals and non-goals
 
 ### Goals
+
 - Operate Linux EC2 workloads in private subnets with zero inbound network exposure.
 - Provide auditable, identity-based shell and command access without SSH, key pairs, or bastions.
 - Make instance replacement automatic, not manual.
@@ -17,6 +18,7 @@ For shorter "why" answers on individual decisions, see the ADRs under [`decision
 - Be defensible in a senior-level technical interview — every choice has a documented reason.
 
 ### Non-goals
+
 - Running a relational managed database (RDS). The fraud-worker uses DynamoDB for decision persistence — serverless, near-zero cost at PoC volume, routed free via Gateway Endpoint, and directly relevant to the fraud detection narrative. RDS would add ~$20/month minimum without adding to the platform story.
 - Multi-account or organization-level controls. This repo provisions a single workload pattern in a single account. The org structure is assumed to exist.
 - Human identity (SSO, permission sets, MFA enforcement at the IAM Identity Center level). The platform builds *workload* IAM roles; operator IAM is upstream.

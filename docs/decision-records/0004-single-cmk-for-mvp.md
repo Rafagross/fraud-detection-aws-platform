@@ -17,14 +17,17 @@ Use a **single customer-managed CMK**, `cloudops-dev-cmk-platform`, for all plat
 ## Alternatives considered
 
 ### AWS-managed keys everywhere
+
 - Rejected: no key policy control, cannot enforce `kms:ViaService` conditions, weaker portfolio narrative.
 
 ### Per-data-class CMKs
+
 - Pros: tighter blast radius, more granular auditing.
 - Cons: four key policies to maintain, more IAM complexity for service roles, disproportionate overhead for a single-workload MVP.
 - Deferred to Phase 2.
 
 ### One CMK for everything (chosen)
+
 - Cost: $1/month.
 - One key policy to review. Clear audit trail.
 - Compatible with Phase 2 split (splitting keys later is easier than merging).

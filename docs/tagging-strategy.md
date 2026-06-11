@@ -48,7 +48,7 @@ Used by AWS services or platform automation to make decisions. Adding or removin
 
 ### 4.1 Operator SSM session access
 
-```
+```yaml
 Condition:
   StringEquals:
     ssm:resourceTag/Project: "cloudops-platform"

@@ -15,20 +15,25 @@ Use **Amazon Linux 2023 on Graviton (`arm64`)**, instance type `t4g.micro`. AMI 
 ## OS alternatives considered
 
 ### Amazon Linux 2
+
 - End of standard support: June 30, 2025. Already past. Rejected immediately.
 
 ### Amazon Linux 2023
+
 - Current AWS-supported default for new Linux workloads. DNF-based, 5-year support commitment, native `arm64` parity. **Chosen.**
 
 ### Ubuntu / RHEL
+
 - Familiar to operators without AWS background. No benefit for this platform narrative. Rejected for MVP.
 
 ## Architecture alternatives considered
 
 ### x86 (`t3.micro`) — ~$7.50/month
+
 - Rejected: ~20% more expensive, not the AWS-recommended default for new workloads in 2026.
 
 ### Graviton `arm64` (`t4g.micro`) — ~$6.00/month
+
 - Cheaper, lower power, AWS-recommended default for new Linux workloads. **Chosen.**
 - AL2023 has full parity. SSM Agent and CloudWatch Agent ship native `arm64` builds. Go cross-compiles trivially with `GOOS=linux GOARCH=arm64`.
 

@@ -9,6 +9,7 @@
 Operators need shell and command access to private EC2 instances.
 
 Two common patterns:
+
 1. **SSH-based access** — public-facing bastion or jump host, SSH key pairs, port 22 open.
 2. **AWS Systems Manager Session Manager** — IAM-gated shell through the SSM control plane, no inbound network rules, no key material on instances.
 
@@ -19,12 +20,15 @@ Use **SSM Session Manager exclusively.** No SSH service enabled on workload inst
 ## Alternatives considered
 
 ### Alternative A: Bastion host with SSH
+
 - Rejected: one more instance to patch, key distribution/rotation overhead, public IP exposure, weaker session auditing.
 
 ### Alternative B: EC2 Instance Connect (EIC) Endpoint
+
 - Rejected: still uses SSH under the hood, requires SSH service running on the instance. SSM removes SSH entirely.
 
 ### Alternative C: Hybrid (SSM primary, SSH break-glass)
+
 - Rejected: re-introduces the surface SSM removes. Instance failure is handled by ASG replacement and EC2 Serial Console.
 
 ## Trade-offs
