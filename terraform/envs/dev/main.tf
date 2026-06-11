@@ -161,9 +161,7 @@ module "slack_notifications" {
 
 # 12. Inspector v2 — continuous EC2 vulnerability scanning
 module "inspector" {
-  source      = "../../modules/inspector"
-  project     = var.project
-  environment = var.environment
+  source = "../../modules/inspector"
 }
 
 # 13. FIS — chaos experiment: terminate one instance, validate ASG self-healing

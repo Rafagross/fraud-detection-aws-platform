@@ -29,9 +29,3 @@ jobs:
             README.md
             docs/**/*.md
             runbooks/**/*.md
-          config: |
-            {
-              "MD013": false,
-              "MD033": false,
-              "MD041": false
-            }
