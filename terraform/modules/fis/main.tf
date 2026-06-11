@@ -2,8 +2,10 @@
 # Module: fis
 # Purpose: AWS Fault Injection Service — chaos experiment that terminates one
 #          workload instance to validate ASG self-healing (min=max=2).
-#          Experiment logs go to a KMS-encrypted CloudWatch Log Group.
+#          Experiment logs go to a CloudWatch Log Group.
 ##############################################################################
+
+data "aws_caller_identity" "current" {}
 
 locals {
   name_prefix = "${var.project}-${var.environment}"
@@ -12,8 +14,25 @@ locals {
 resource "aws_cloudwatch_log_group" "fis_experiments" {
   name              = "/aws/fis/${local.name_prefix}-experiments"
   retention_in_days = 30
-  kms_key_id        = var.kms_key_arn
   tags              = { Name = "${local.name_prefix}-lg-fis-experiments" }
+}
+
+# FIS uses delivery.logs.amazonaws.com to write experiment logs.
+# That service principal requires an explicit CloudWatch Logs resource policy on the log group.
+resource "aws_cloudwatch_log_resource_policy" "fis_delivery" {
+  policy_name = "${local.name_prefix}-fis-log-delivery"
+  policy_document = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "delivery.logs.amazonaws.com" }
+      Action    = ["logs:CreateLogStream", "logs:PutLogEvents"]
+      Resource  = "${aws_cloudwatch_log_group.fis_experiments.arn}:*"
+      Condition = {
+        StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+      }
+    }]
+  })
 }
 
 resource "aws_iam_role" "fis" {
@@ -62,20 +81,36 @@ resource "aws_iam_role_policy" "fis_logs" {
   role = aws_iam_role.fis.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Sid    = "WriteFISExperimentLogs"
-      Effect = "Allow"
-      Action = [
-        "logs:CreateLogStream",
-        "logs:PutLogEvents",
-        "logs:DescribeLogGroups",
-        "logs:DescribeLogStreams",
-      ]
-      Resource = [
-        aws_cloudwatch_log_group.fis_experiments.arn,
-        "${aws_cloudwatch_log_group.fis_experiments.arn}:*",
-      ]
-    }]
+    Statement = [
+      {
+        Sid    = "WriteFISExperimentLogs"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams",
+        ]
+        Resource = [
+          aws_cloudwatch_log_group.fis_experiments.arn,
+          "${aws_cloudwatch_log_group.fis_experiments.arn}:*",
+        ]
+      },
+      {
+        Sid    = "FISLogDelivery"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogDelivery",
+          "logs:GetLogDelivery",
+          "logs:UpdateLogDelivery",
+          "logs:DeleteLogDelivery",
+          "logs:ListLogDeliveries",
+          "logs:PutResourcePolicy",
+          "logs:DescribeResourcePolicies",
+        ]
+        Resource = ["*"]
+      },
+    ]
   })
 }
 

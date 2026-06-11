@@ -169,7 +169,6 @@ module "fis" {
   source      = "../../modules/fis"
   project     = var.project
   environment = var.environment
-  kms_key_arn = module.kms.key_arn
 }
 
 # 14. DLQ depth alarm — standalone resource that needs both observability (SNS ARN)
