@@ -6,6 +6,7 @@
 #   kms, worker-infra > iam-roles > ec2-workload > vpc-endpoints
 #   vpc-endpoints > sg-rule-wiring > backup > observability > image-builder
 #   observability + worker-infra > dlq-alarm (standalone resource at bottom)
+#   inspector + fis are independent (no cross-module deps)
 ##############################################################################
 
 data "aws_caller_identity" "current" {}
@@ -158,7 +159,22 @@ module "slack_notifications" {
   slack_webhook_url = var.slack_webhook_url
 }
 
-# 12. DLQ depth alarm — standalone resource that needs both observability (SNS ARN)
+# 12. Inspector v2 — continuous EC2 vulnerability scanning
+module "inspector" {
+  source      = "../../modules/inspector"
+  project     = var.project
+  environment = var.environment
+}
+
+# 13. FIS — chaos experiment: terminate one instance, validate ASG self-healing
+module "fis" {
+  source      = "../../modules/fis"
+  project     = var.project
+  environment = var.environment
+  kms_key_arn = module.kms.key_arn
+}
+
+# 14. DLQ depth alarm — standalone resource that needs both observability (SNS ARN)
 # and worker_infra (DLQ name). Lives here to avoid circular module dependencies.
 resource "aws_cloudwatch_metric_alarm" "worker_dlq_depth" {
   alarm_name          = "${var.project}-${var.environment}-alarm-worker-dlq-depth"
