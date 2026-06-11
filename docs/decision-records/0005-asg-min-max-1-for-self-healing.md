@@ -17,12 +17,15 @@ Use an **Auto Scaling Group with `min=desired=max=1`**, spanning both private wo
 ## Alternatives considered
 
 ### Standalone EC2 instance
+
 - Rejected: manual recovery on failure. Reads as naive in a production-pattern reference.
 
 ### EC2 Auto Recovery via CloudWatch alarm
+
 - Rejected as primary: handles only system status check failures, not instance-level failures. Cannot drive Launch-Template-based AMI roll-forward.
 
 ### ASG `min=max=1` (chosen)
+
 - Free (no per-hour ASG cost).
 - Handles both system and instance status check failures.
 - Replacement instance launches from current Launch Template version (picks up latest Golden AMI).

@@ -12,6 +12,7 @@ ADR 0005 set ASG min/max=1 to minimize cost for the initial demo. Adding the fra
 Change `asg_instance_count` default to **2** and set `min_healthy_percentage = 50` in the instance refresh policy.
 
 With two instances and 50% min-healthy:
+
 - One instance is replaced at a time.
 - The remaining instance continues polling SQS throughout the refresh.
 - Processing throughput drops to 50% during the rollout window (~5–10 min), but never stops.

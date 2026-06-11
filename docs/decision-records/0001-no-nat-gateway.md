@@ -9,6 +9,7 @@
 Workload EC2 instances live in private subnets and need to reach AWS service endpoints (SSM, CloudWatch, S3) and, in some designs, the public internet (for OS package updates, third-party API calls, etc.).
 
 Two common options:
+
 1. **NAT Gateway** — managed, highly available, ~$33/month base per AZ plus $0.045/GB processed.
 2. **VPC Endpoints (Interface + Gateway)** — direct private connectivity to specific AWS services. Interface endpoints ~$7.30/month each; S3 Gateway Endpoint is free.
 
@@ -21,17 +22,21 @@ OS package updates and CIS hardening occur inside the EC2 Image Builder pipeline
 ## Alternatives considered
 
 ### Alternative A: NAT Gateway in one AZ
+
 - Cost: ~$33/month + data.
 - Rejected: more than doubles the platform's monthly cost for no functional gain at MVP scope.
 
 ### Alternative B: NAT Instance (self-managed)
+
 - Cost: ~$6/month for a `t4g.nano`.
 - Rejected: operator-owned patching, scaling, HA, monitoring — defeats the "operationally clean" narrative.
 
 ### Alternative C: Endpoints + NAT (hybrid)
+
 - Rejected: pays NAT cost without solving any concrete MVP requirement.
 
 ### Chosen: Endpoints only
+
 - Cost: ~$36.50/month for five interface endpoints, $0 for S3 gateway.
 - Saves ~$33/month minimum vs. single-AZ NAT.
 - Improves security: no internet egress means no covert exfiltration path.

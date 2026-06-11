@@ -1,7 +1,7 @@
 # CloudOps Portfolio — Phase 5 Completion & Review
 
 **Date:** 2026-05-01
-**Repo:** https://github.com/Rafagross/aws-cloudops-private-ec2-operations-platform
+**Repo:** <https://github.com/Rafagross/aws-cloudops-private-ec2-operations-platform>
 **Status:** All 5 phases complete, 13 commits, ready for portfolio review
 
 ---
@@ -9,6 +9,7 @@
 ## Current State: What Was Built
 
 ### Phase 1–2: Full Documentation Layer
+
 - README, architecture.md, cost-model.md
 - ADRs 0001–0007 (decision-recorded reasoning)
 - Security baseline, threat model, backup strategy
@@ -16,15 +17,18 @@
 - Mermaid diagrams (architecture, network, data-flow, IAM trust)
 
 ### Phase 3: CI Scaffolding
+
 - 4 GitHub workflows (terraform-validate, tflint, checkov, docs-lint)
 - Pre-commit hooks, .editorconfig
 
 ### Phase 4: 8 Terraform Modules + Environment Composition
+
 - kms, vpc, vpc-endpoints, iam-roles, ec2-workload, backup, observability, image-builder
 - Fixed circular dependency (ec2-workload ↔ vpc-endpoints)
 - All modules: least-privilege IAM, KMS encryption, IMDSv2 required, Graviton t4g.micro arm64, ASG min=max=1
 
 ### Phase 5: 5 Production Runbooks (Mode B, SSM-first)
+
 - 01-access-instance-via-ssm.md (SSM session, port-forward, diagnostics)
 - 02-rotate-golden-ami.md (Image Builder, AMI rollout, instance refresh)
 - 03-restore-from-backup.md (AWS Backup recovery to new volume)
@@ -62,6 +66,7 @@ All runbooks follow structure: Trigger / Prerequisites / Impact / Procedure / Va
 ### Priority 1: Screenshots (HIGH IMPACT = 95% credibility boost)
 
 **What to capture in `assets/screenshots/`:**
+
 - EC2 Auto Scaling Group with 1 instance running
 - CloudWatch dashboard showing real metrics (CPU, memory, disk)
 - AWS Backup vault with recovery points listed

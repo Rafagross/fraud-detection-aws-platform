@@ -8,7 +8,7 @@ For tagging (separate from naming), see [`tagging-strategy.md`](tagging-strategy
 
 ## 1. Pattern
 
-```
+```text
 <project>-<env>-<resource-type>-<purpose>
 ```
 
@@ -71,6 +71,7 @@ For tagging (separate from naming), see [`tagging-strategy.md`](tagging-strategy
 | AWS Budgets | `budget` | `cloudops-dev-budget-monthly` |
 
 **Exceptions:**
+
 - **CloudWatch Log Groups** use AWS conventional `/` paths.
 - **SSM Parameters** use `/`-path hierarchy (see Section 4.3).
 - **S3 buckets** append account ID for global uniqueness.
@@ -82,7 +83,7 @@ For tagging (separate from naming), see [`tagging-strategy.md`](tagging-strategy
 
 ### 4.1 Subnets (carry AZ)
 
-```
+```text
 cloudops-<env>-subnet-<tier>-<az-suffix>
 ```
 
@@ -95,11 +96,12 @@ Examples: `cloudops-dev-subnet-private-app-a`, `cloudops-dev-subnet-private-vpce
 
 ### 4.3 SSM Parameters (hierarchical)
 
-```
+```text
 /cloudops/<env>/<category>/<component>/<key>
 ```
 
 Examples:
+
 - `/cloudops/dev/golden-ami/al2023-arm64/latest`
 - `/cloudops/dev/cloudwatch-agent/config/standard`
 - `/cloudops/dev/worker/sqs-queue-url`
@@ -108,7 +110,8 @@ Examples:
 - `/cloudops/dev/app/fraud-worker/api-token` (SecureString)
 
 Enables IAM resource scoping by path prefix:
-```
+
+```text
 Resource: arn:aws:ssm:us-east-1:<acct>:parameter/cloudops/dev/app/fraud-worker/*
 Resource: arn:aws:ssm:us-east-1:<acct>:parameter/cloudops/dev/worker/*
 ```
@@ -116,6 +119,7 @@ Resource: arn:aws:ssm:us-east-1:<acct>:parameter/cloudops/dev/worker/*
 ### 4.4 CloudWatch Log Groups
 
 Conventional `/aws/<service>/...` prefix:
+
 - `/aws/ec2/fraud-worker/system`
 - `/aws/ec2/fraud-worker/app`
 - `/aws/ec2/fraud-worker/audit`
@@ -141,6 +145,7 @@ Conventional `/aws/<service>/...` prefix:
 ## 6. Validation
 
 Terraform modules (Phase 4) include input validation blocks enforcing:
+
 - Project segment is `cloudops`.
 - Environment is one of `dev`, `staging`, `prod`.
 - Generated names match `^cloudops-(dev|staging|prod)-[a-z]+-[a-z0-9-]+$`.
