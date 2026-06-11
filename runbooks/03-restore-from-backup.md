@@ -123,7 +123,7 @@ Loop every 60s until `Status = COMPLETED`. From warm storage: typically <5 min f
 1. **Stop the ASG instance:** ASG → Edit → Set `Desired = 0`. Wait until terminated.
 2. **Detach old root** from the now-stopped placeholder (in practice the ASG already replaced it).
 3. **Attach restored volume** as `/dev/xvda`.
-4. **Set `Desired = 1`** on the ASG to launch a fresh instance using the Launch Template — but this **launches from the AMI, not the volume**. 
+4. **Set `Desired = 1`** on the ASG to launch a fresh instance using the Launch Template — but this **launches from the AMI, not the volume**.
 5. **Conclusion:** in this architecture, root-volume restore in-place is not the right primitive. Use AMI rotation ([Runbook 02](02-rotate-golden-ami.md)).
 
 ---

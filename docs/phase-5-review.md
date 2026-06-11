@@ -73,6 +73,7 @@ All runbooks follow structure: Trigger / Prerequisites / Impact / Procedure / Va
 ### Priority 2: "How to Review This Repo" Guide (MEDIUM IMPACT = 70%)
 
 **Add to README:**
+
 1. Read the Recruiter Summary (5 lines: problem/solution/AWS services/value/skills)
 2. Review `docs/architecture.md` (full system design)
 3. Check `docs/decision-records/` (ADRs 0001–0007, decision reasoning)
@@ -96,6 +97,7 @@ All runbooks follow structure: Trigger / Prerequisites / Impact / Procedure / Va
 ### Priority 4: Status Badges (LOW IMPACT = 50%)
 
 **Optional:** Add badges for state tracking
+
 - `[Designed]` vs `[Implemented]` vs `[Tested]`
 - `[Screenshots available]`
 
@@ -114,6 +116,7 @@ All runbooks follow structure: Trigger / Prerequisites / Impact / Procedure / Va
 **Accurate diagnosis:** The repository is **design-solid but execution-shy**. Code works, docs are thorough, but there's no proof it was actually deployed.
 
 **Impact ranking (honest assessment):**
+
 1. **Screenshots:** 95% impact — single biggest credibility boost
 2. **Recruiter Summary:** 80% impact — removes need to read 50 pages to understand the point
 3. **How to Review guide:** 70% impact — helps reviewer navigate faster
@@ -121,6 +124,7 @@ All runbooks follow structure: Trigger / Prerequisites / Impact / Procedure / Va
 5. **Commit signatures:** 30% impact — cosmetic, doesn't change substance
 
 **Why this matters for portfolio:**
+
 - Hiring managers spend 30–90 seconds on portfolio projects
 - Design docs alone → "shows thinking" (ok)
 - Design + screenshots → "shows execution" (wow)
@@ -132,14 +136,16 @@ All runbooks follow structure: Trigger / Prerequisites / Impact / Procedure / Va
 
 ## Recommended Next Action (2–3 hours)
 
-**Option 1: Full Deploy (Recommended)**
+### Option 1: Full Deploy (Recommended)
 
 1. **Deploy to AWS account** (Free Tier or personal):
+
    ```bash
    cd terraform/envs/dev
    # Set ami_id to a valid AL2023 arm64 AMI
    terraform apply
    ```
+
    Wait ~5 min for stack completion.
 
 2. **Capture 4–5 screenshots:**
@@ -158,7 +164,7 @@ All runbooks follow structure: Trigger / Prerequisites / Impact / Procedure / Va
 
 **Result:** Portfolio goes from "well-designed" → "deployed and running." Credibility +25–30%.
 
-**Option 2: Screenshot-Only (Quicker, same impact)**
+### Option 2: Screenshot-Only (Quicker, same impact)
 
 If deploying is too slow, collect screenshots from an existing production/staging AWS environment if available. The proof matters more than the specific account.
 
@@ -173,7 +179,7 @@ The code is solid. The design is mature. The documentation is thorough. **The on
 ## Files Reference
 
 - **This document:** `docs/phase-5-review.md` (for internal reference)
-- **GitHub repo:** https://github.com/Rafagross/aws-cloudops-private-ec2-operations-platform
+- **GitHub repo:** <https://github.com/Rafagross/aws-cloudops-private-ec2-operations-platform>
 - **Related ADRs:** docs/decision-records/
 - **Runbooks:** runbooks/01-05.md
 - **Terraform:** terraform/envs/dev/ + terraform/modules/

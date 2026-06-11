@@ -149,7 +149,7 @@ The single largest line item is VPC Interface Endpoints. Forgetting to destroy t
 
 ## Repository layout
 
-```
+```text
 .
 ├── README.md                       # This file
 ├── LICENSE
@@ -217,6 +217,7 @@ The non-obvious choices are documented as ADRs in [`docs/decision-records/`](doc
 VPC + endpoints, KMS, IAM, ASG-managed EC2 (min=max=2) with Golden AMI, fraud transaction worker (SQS → EC2 → DynamoDB), CloudWatch Agent + alarms, AWS Backup, EventBridge → SNS → email + Slack, SSM session logging, immutable patching via Image Builder (ARM64 Python validation gate), AWS Budgets, OIDC-based GitHub Actions CI/CD, GuardDuty threat detection, Inspector v2 vulnerability scanning, FIS chaos engineering, runbooks, ADRs.
 
 **Phase 6 — fully complete:**
+
 - ✅ OIDC-based GitHub Actions pipeline — `terraform plan` on PR, `terraform apply` on merge to main; two IAM roles (read-only plan, admin apply) scoped to exact OIDC sub claims; no static credentials.
 - ✅ GuardDuty module — detector enabled with S3 + malware protection; EventBridge routes HIGH/CRITICAL findings (severity ≥ 7) to platform SNS topic.
 - ✅ AWS Budgets — monthly $100 ceiling with alerts at 50%, 80%, 100%; managed as Terraform resource.
@@ -226,6 +227,7 @@ VPC + endpoints, KMS, IAM, ASG-managed EC2 (min=max=2) with Golden AMI, fraud tr
 - ✅ FIS chaos engineering — experiment template terminates one ASG instance; validates self-healing under `min=max=2`; experiment logs to KMS-encrypted CloudWatch Log Group.
 
 **Phase 2+ (enterprise scale, out of scope for this repo):**
+
 - Transit Gateway + Shared Services VPC to consolidate Interface Endpoints across multiple workload VPCs.
 - AWS Config conformance pack.
 - Cross-account / cross-region Backup Vault Lock.
@@ -242,13 +244,14 @@ A managed database (no application use case), Kubernetes (out of scope for an EC
 
 This repo deploys into a **workload account** (`Portfolio`) inside an AWS Organizations structure. The organization layout assumed:
 
-```
+```text
 Management account (460997080963)
 └── Workloads OU
     └── Portfolio account (776648109094)  ← deploy target
 ```
 
 Account-level controls configured outside Terraform (one-time setup):
+
 - IAM Identity Center with `AdminFullAccess` and `ReadOnlyAccess` permission sets
 - Organization CloudTrail (multi-region, centralized in Management account S3 bucket)
 - SCP `deny-non-us-regions` on Workloads OU — permits `us-east-1`, `us-east-2`, `us-west-1`, `us-west-2` only

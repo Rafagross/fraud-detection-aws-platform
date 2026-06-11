@@ -125,7 +125,7 @@ Query Logs Insights to find the noisy source:
 
 **Console: CloudWatch → Logs Insights** → log group `/aws/ec2/fraud-worker/app` → time range = last 24h:
 
-```
+```text
 fields @timestamp, @message
 | stats count() as cnt by bin(5m)
 | sort @timestamp desc
@@ -133,7 +133,7 @@ fields @timestamp, @message
 
 Then drill into the spike window:
 
-```
+```text
 fields @timestamp, @message
 | filter @message like /ERROR|WARN/
 | stats count() by @message

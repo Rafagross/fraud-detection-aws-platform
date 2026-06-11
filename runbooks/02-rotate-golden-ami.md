@@ -120,11 +120,13 @@ aws autoscaling start-instance-refresh \
 After the refresh shows `Successful`:
 
 1. **New instance is using the new AMI:**
+
    ```bash
    aws ec2 describe-instances \
      --filters "Name=tag:aws:autoscaling:groupName,Values=cloudops-dev-asg-workload" "Name=instance-state-name,Values=running" \
      --query 'Reservations[].Instances[].[InstanceId,ImageId]' --output table
    ```
+
    The `ImageId` should match `$NEW_AMI`.
 
 2. **SSM Agent is Online** — Systems Manager → Fleet Manager.
@@ -139,12 +141,14 @@ If validation fails:
 
 1. **Console:** Launch Template → set previous version as default.
 2. **CLI:**
+
    ```bash
    aws ec2 modify-launch-template \
      --launch-template-name cloudops-dev-lt-workload \
      --default-version <previous-version-number> \
      --region us-east-1
    ```
+
 3. Trigger another instance refresh — same procedure as Step 5.
 4. Open an issue tagged `phase:hardening` with the build logs (S3: `image-builder-logs/`).
 

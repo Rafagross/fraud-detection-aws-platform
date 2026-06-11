@@ -91,6 +91,7 @@ AWS_PROFILE=cloudops-portfolio terraform apply
 ```
 
 Review the plan before typing `yes`. Expected stable state:
+
 - `aws_security_group.workload` → **no changes** (lifecycle ignore_changes on egress)
 - `aws_security_group_rule.workload_to_vpce` → no changes
 - `aws_security_group_rule.workload_to_dynamodb` → no changes
@@ -107,6 +108,7 @@ aws ec2 describe-security-groups \
 ```
 
 Expected output:
+
 - `pl-63a5400a` — S3 gateway endpoint
 - `pl-02cd2c6b` — DynamoDB gateway endpoint
 - `sg-04b38b2a73492e4d7` — VPC interface endpoints SG
@@ -128,7 +130,7 @@ AWS_PROFILE=cloudops-portfolio terraform apply -replace=aws_security_group_rule.
 
 ### ImageBuilder `ResourceDependencyException`
 
-```
+```text
 Error: deleting Image Builder Image Recipe: ResourceDependencyException
 ```
 
@@ -137,7 +139,7 @@ Error: deleting Image Builder Image Recipe: ResourceDependencyException
 
 ### ImageBuilder `ResourceAlreadyExistsException`
 
-```
+```text
 Error: creating Image Builder Image Recipe: ResourceAlreadyExistsException
 ```
 
